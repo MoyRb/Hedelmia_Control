@@ -17,6 +17,14 @@ export type Product = {
 
 export type CashMovement = { id: number; cashBoxId: number; tipo: string; concepto: string; monto: number; fecha: string };
 export type CashBox = { id: number; nombre: string; tipo: string; movimientos: CashMovement[] };
+export type Customer = {
+  id: number;
+  nombre: string;
+  telefono?: string | null;
+  limite: number;
+  saldo: number;
+  estado: 'activo' | 'inactivo';
+};
 
 contextBridge.exposeInMainWorld('hedelmia', {
   exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino),
@@ -36,7 +44,24 @@ contextBridge.exposeInMainWorld('hedelmia', {
     ipcRenderer.invoke('cajas:crearMovimiento', data),
   listarVentas: () => ipcRenderer.invoke('ventas:list'),
   crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) =>
-    ipcRenderer.invoke('ventas:crear', data)
+    ipcRenderer.invoke('ventas:crear', data),
+  listarClientes: () => ipcRenderer.invoke('clientes:listar') as Promise<Customer[]>,
+  crearCliente: (data: {
+    nombre: string;
+    telefono?: string;
+    limite?: number;
+    saldo?: number;
+    estado?: 'activo' | 'inactivo';
+  }) => ipcRenderer.invoke('clientes:crear', data),
+  actualizarCliente: (data: {
+    id: number;
+    nombre: string;
+    telefono?: string;
+    limite?: number;
+    saldo?: number;
+    estado?: 'activo' | 'inactivo';
+  }) => ipcRenderer.invoke('clientes:actualizar', data),
+  toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) => ipcRenderer.invoke('clientes:toggleEstado', data)
 });
 
 declare global {
@@ -58,6 +83,10 @@ declare global {
       crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) => Promise<CashMovement>;
       listarVentas: () => Promise<unknown>;
       crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) => Promise<unknown>;
+      listarClientes: () => Promise<Customer[]>;
+      crearCliente: (data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => Promise<Customer>;
+      actualizarCliente: (data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => Promise<Customer>;
+      toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) => Promise<Customer>;
     };
   }
 }

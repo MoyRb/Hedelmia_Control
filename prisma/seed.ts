@@ -49,7 +49,9 @@ async function main() {
   await prisma.customer.createMany({
     data: [
       { nombre: 'Cafetería Monarca', telefono: '333-000-0001', limite: 5000, saldo: 1500 },
-      { nombre: 'Escuela San Ángel', telefono: '333-000-0002', limite: 3000, saldo: 0 }
+      { nombre: 'Escuela San Ángel', telefono: '333-000-0002', limite: 3000, saldo: 0 },
+      { nombre: 'Eventos Luna', telefono: '333-000-0003', limite: 2000, saldo: 800 },
+      { nombre: 'Cocina Doña Mary', telefono: '333-000-0004', limite: 3500, saldo: 0, estado: 'inactivo' }
     ]
   });
 
