@@ -111,6 +111,51 @@ ipcMain.handle(
   }
 );
 
+ipcMain.handle('clientes:listar', async () => {
+  return prisma.customer.findMany({ orderBy: { id: 'asc' } });
+});
+
+ipcMain.handle(
+  'clientes:crear',
+  async (
+    _event,
+    data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
+  ) => {
+    return prisma.customer.create({
+      data: {
+        nombre: data.nombre,
+        telefono: data.telefono,
+        limite: data.limite ?? 0,
+        saldo: data.saldo ?? 0,
+        estado: data.estado ?? 'activo'
+      }
+    });
+  }
+);
+
+ipcMain.handle(
+  'clientes:actualizar',
+  async (
+    _event,
+    data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
+  ) => {
+    return prisma.customer.update({
+      where: { id: data.id },
+      data: {
+        nombre: data.nombre,
+        telefono: data.telefono,
+        limite: data.limite ?? 0,
+        saldo: data.saldo ?? 0,
+        estado: data.estado ?? 'activo'
+      }
+    });
+  }
+);
+
+ipcMain.handle('clientes:toggleEstado', async (_event, data: { id: number; estado: 'activo' | 'inactivo' }) => {
+  return prisma.customer.update({ where: { id: data.id }, data: { estado: data.estado } });
+});
+
 ipcMain.handle('ventas:list', async () => {
   return prisma.sale.findMany({ include: { items: true, pagos: true } });
 });
