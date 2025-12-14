@@ -1,15 +1,63 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+export type Flavor = { id: number; nombre: string; color?: string | null; activo: boolean };
+export type ProductType = { id: number; nombre: string };
+export type Product = {
+  id: number;
+  sku?: string | null;
+  presentacion: string;
+  precio: number;
+  costo: number;
+  stock: number;
+  tipoId?: number;
+  saborId?: number;
+  tipo: ProductType;
+  sabor: Flavor;
+};
+
+export type CashMovement = { id: number; cashBoxId: number; tipo: string; concepto: string; monto: number; fecha: string };
+export type CashBox = { id: number; nombre: string; tipo: string; movimientos: CashMovement[] };
+
 contextBridge.exposeInMainWorld('hedelmia', {
+  exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino),
+  listarCatalogo: () => ipcRenderer.invoke('catalogo:listar') as Promise<{ sabores: Flavor[]; productos: Product[]; tipos: ProductType[] }>,
+  crearSabor: (data: { nombre: string; color?: string; activo?: boolean }) => ipcRenderer.invoke('catalogo:crearSabor', data),
+  crearProducto: (data: {
+    tipoId: number;
+    saborId: number;
+    presentacion: string;
+    precio: number;
+    costo: number;
+    sku?: string;
+    stock?: number;
+  }) => ipcRenderer.invoke('catalogo:crearProducto', data),
+  listarCajas: () => ipcRenderer.invoke('cajas:listarMovimientos') as Promise<CashBox[]>,
+  crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) =>
+    ipcRenderer.invoke('cajas:crearMovimiento', data),
   listarVentas: () => ipcRenderer.invoke('ventas:list'),
-  exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino)
+  crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) =>
+    ipcRenderer.invoke('ventas:crear', data)
 });
 
 declare global {
   interface Window {
     hedelmia: {
-      listarVentas: () => Promise<unknown>;
       exportarBackup: (destino: string) => Promise<{ ok: boolean }>;
+      listarCatalogo: () => Promise<{ sabores: Flavor[]; productos: Product[]; tipos: ProductType[] }>;
+      crearSabor: (data: { nombre: string; color?: string; activo?: boolean }) => Promise<Flavor>;
+      crearProducto: (data: {
+        tipoId: number;
+        saborId: number;
+        presentacion: string;
+        precio: number;
+        costo: number;
+        sku?: string;
+        stock?: number;
+      }) => Promise<Product>;
+      listarCajas: () => Promise<CashBox[]>;
+      crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) => Promise<CashMovement>;
+      listarVentas: () => Promise<unknown>;
+      crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) => Promise<unknown>;
     };
   }
 }
