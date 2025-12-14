@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #f8c4a4;
+  --color-secondary: #efe6c6;
+  --color-accent: #dec3cd;
+  --color-highlight: #f0f0b7;
+  --color-surface: #fcf2e4;
+  --color-background: #d0d0d8;
+  --color-texto: #2f2f2f;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--color-surface);
+  color: var(--color-texto);
+}
+
+.card {
+  @apply bg-white/80 backdrop-blur shadow-sm rounded-xl border border-secondary/60;
+}
