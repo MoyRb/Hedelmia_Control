@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
@@ -9,7 +9,7 @@ async function main() {
       email: 'admin@hedelmia.local',
       nombre: 'Admin',
       password: 'admin123',
-      role: Role.ADMIN
+      role: 'ADMIN'
     }
   });
 
@@ -18,6 +18,7 @@ async function main() {
     update: {},
     create: { nombre: 'Paleta' }
   });
+
   const tipoNieve = await prisma.productType.upsert({
     where: { id: 2 },
     update: {},

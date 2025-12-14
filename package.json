@@ -6,12 +6,13 @@
   "author": "Hedelmiá Team",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:watch\" \"npm:dev:electron\"",
     "dev:renderer": "cd src/renderer && vite",
-    "dev:main": "cross-env NODE_ENV=development ts-node-dev --project tsconfig.json src/main/index.ts",
+    "dev:watch": "tsc -w -p tsconfig.json",
+    "dev:electron": "wait-on tcp:5173 && wait-on \"dist/main/index.js\" && electronmon .",
     "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
     "build:renderer": "cd src/renderer && vite build",
-    "build:main": "tsc --project tsconfig.json",
+    "build:main": "tsc -p tsconfig.json",
     "build:prisma": "prisma generate",
     "seed": "prisma db push && ts-node prisma/seed.ts",
     "lint": "eslint --ext .ts,.tsx src",
@@ -24,8 +25,7 @@
     "class-variance-authority": "0.7.0",
     "concurrently": "8.2.2",
     "electron": "29.4.0",
-    "electron-is-dev": "3.3.0",
-    "lucide-react": "0.392.0",
+    "lucide-react": "^0.561.0",
     "pdf-lib": "1.17.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -34,8 +34,8 @@
     "sqlite3": "5.1.7",
     "tailwind-merge": "2.2.1",
     "tailwindcss-animate": "1.0.7",
-    "zustand": "4.5.0",
-    "zod": "4.22.3"
+    "zod": "^4.1.13",
+    "zustand": "4.5.0"
   },
   "devDependencies": {
     "@types/node": "20.11.19",
@@ -45,6 +45,7 @@
     "autoprefixer": "10.4.17",
     "cross-env": "7.0.3",
     "electron-builder": "24.13.3",
+    "electronmon": "^2.0.4",
     "eslint": "8.56.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-react": "7.33.2",
@@ -52,9 +53,9 @@
     "prisma": "5.16.2",
     "tailwindcss": "3.4.1",
     "ts-node": "10.9.2",
-    "ts-node-dev": "2.0.0",
     "typescript": "5.3.3",
-    "vite": "5.0.12"
+    "vite": "5.0.12",
+    "wait-on": "^9.0.3"
   },
   "build": {
     "appId": "com.hedelmia.pos",
