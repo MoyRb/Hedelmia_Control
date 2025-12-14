@@ -13,11 +13,13 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   background: var(--color-surface);
   color: var(--color-texto);
 }
 
-.card {
-  @apply bg-white/80 backdrop-blur shadow-sm rounded-xl border border-secondary/60;
+@layer components {
+  .card {
+    @apply bg-white/80 backdrop-blur shadow-sm rounded-xl border border-secondary/60;
+  }
 }

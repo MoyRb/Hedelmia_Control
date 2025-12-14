@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import isDev from 'electron-is-dev';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 
@@ -15,6 +14,8 @@ const createWindow = async () => {
     },
     backgroundColor: '#fcf2e4'
   });
+
+  const isDev = !app.isPackaged; // ✅ reemplazo de electron-is-dev
 
   if (isDev) {
     await win.loadURL('http://localhost:5173');

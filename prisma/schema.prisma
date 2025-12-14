@@ -12,72 +12,73 @@ model User {
   email     String   @unique
   nombre    String
   password  String
-  role      Role     @default(CAJERO)
+  role      String   @default("CAJERO")
   createdAt DateTime @default(now())
-  logs      AuditLog[]
-}
 
-enum Role {
-  ADMIN
-  GERENTE
-  CAJERO
+  logs  AuditLog[]
+  sales Sale[]
 }
 
 model Flavor {
-  id      Int     @id @default(autoincrement())
-  nombre  String
-  color   String?
-  activo  Boolean @default(true)
+  id       Int       @id @default(autoincrement())
+  nombre   String
+  color    String?
+  activo   Boolean   @default(true)
   products Product[]
 }
 
 model ProductType {
-  id    Int    @id @default(autoincrement())
-  nombre String
+  id       Int       @id @default(autoincrement())
+  nombre   String
   products Product[]
 }
 
 model Product {
-  id             Int      @id @default(autoincrement())
-  sku            String?  @unique
-  tipoId         Int
-  saborId        Int
-  presentacion   String
-  precio         Float
-  costo          Float
-  foto           String?
-  Recipe         Recipe?
-  stock          Int      @default(0)
-  tipo           ProductType @relation(fields: [tipoId], references: [id])
-  sabor          Flavor   @relation(fields: [saborId], references: [id])
-  items          SaleItem[]
-  stockMoves     FinishedStockMovement[]
+  id           Int     @id @default(autoincrement())
+  sku          String? @unique
+  tipoId       Int
+  saborId      Int
+  presentacion String
+  precio       Float
+  costo        Float
+  foto         String?
+  stock        Int     @default(0)
+
+  Recipe Recipe?
+
+  tipo       ProductType             @relation(fields: [tipoId], references: [id])
+  sabor      Flavor                  @relation(fields: [saborId], references: [id])
+  items      SaleItem[]
+  stockMoves FinishedStockMovement[]
 }
 
 model Unit {
-  id     Int    @id @default(autoincrement())
-  nombre String @unique
+  id       Int           @id @default(autoincrement())
+  nombre   String        @unique
   materias RawMaterial[]
 }
 
 model RawMaterial {
-  id       Int    @id @default(autoincrement())
-  nombre   String
-  unidadId Int
-  stock    Float  @default(0)
-  costoProm Float @default(0)
-  unidad   Unit   @relation(fields: [unidadId], references: [id])
+  id        Int    @id @default(autoincrement())
+  nombre    String
+  unidadId  Int
+  stock     Float  @default(0)
+  costoProm Float  @default(0)
+
+  unidad      Unit                  @relation(fields: [unidadId], references: [id])
   movimientos RawMaterialMovement[]
+  recipeItems RecipeItem[]
 }
 
 model RawMaterialMovement {
-  id           Int      @id @default(autoincrement())
-  materialId   Int
-  tipo         String
-  cantidad     Float
-  costoTotal   Float
-  createdAt    DateTime @default(now())
-  material     RawMaterial @relation(fields: [materialId], references: [id])
+  id         Int      @id @default(autoincrement())
+  materialId Int
+  tipo       String
+  cantidad   Float
+  costoTotal Float
+  createdAt  DateTime @default(now())
+
+  material RawMaterial @relation(fields: [materialId], references: [id])
 }
 
 model FinishedStockMovement {
@@ -87,93 +88,103 @@ model FinishedStockMovement {
   cantidad   Int
   referencia String?
   createdAt  DateTime @default(now())
-  product    Product  @relation(fields: [productId], references: [id])
+
+  product Product @relation(fields: [productId], references: [id])
 }
 
 model Recipe {
-  id        Int       @id @default(autoincrement())
-  productId Int       @unique
+  id        Int          @id @default(autoincrement())
+  productId Int          @unique
   items     RecipeItem[]
-  product   Product   @relation(fields: [productId], references: [id])
+  product   Product      @relation(fields: [productId], references: [id])
 }
 
 model RecipeItem {
-  id          Int      @id @default(autoincrement())
-  recipeId    Int
-  materialId  Int
-  cantidad    Float
-  recipe      Recipe   @relation(fields: [recipeId], references: [id])
-  material    RawMaterial @relation(fields: [materialId], references: [id])
+  id         Int   @id @default(autoincrement())
+  recipeId   Int
+  materialId Int
+  cantidad   Float
+
+  recipe   Recipe      @relation(fields: [recipeId], references: [id])
+  material RawMaterial @relation(fields: [materialId], references: [id])
 }
 
 model Sale {
-  id         Int        @id @default(autoincrement())
-  folio      String     @unique
-  fecha      DateTime   @default(now())
+  id         Int      @id @default(autoincrement())
+  folio      String   @unique
+  fecha      DateTime @default(now())
   cajeroId   Int
   total      Float
   pagoMetodo String
-  items      SaleItem[]
-  pagos      Payment[]
-  cajero     User       @relation(fields: [cajeroId], references: [id])
+
+  items  SaleItem[]
+  pagos  Payment[]
+  cajero User       @relation(fields: [cajeroId], references: [id])
+
+  @@index([fecha], map: "sale_fecha_idx")
 }
 
 model SaleItem {
-  id        Int      @id @default(autoincrement())
+  id        Int   @id @default(autoincrement())
   saleId    Int
   productId Int
   cantidad  Int
   precio    Float
-  sale      Sale     @relation(fields: [saleId], references: [id])
-  product   Product  @relation(fields: [productId], references: [id])
+
+  sale    Sale    @relation(fields: [saleId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 }
 
 model Payment {
-  id       Int      @id @default(autoincrement())
-  saleId   Int
-  monto    Float
-  metodo   String
+  id        Int      @id @default(autoincrement())
+  saleId    Int
+  monto     Float
+  metodo    String
   createdAt DateTime @default(now())
-  sale     Sale     @relation(fields: [saleId], references: [id])
+
+  sale Sale @relation(fields: [saleId], references: [id])
 }
 
 model CashBox {
-  id      Int    @id @default(autoincrement())
-  nombre  String
-  tipo    String
+  id       Int           @id @default(autoincrement())
+  nombre   String
+  tipo     String
   sesiones CashSession[]
 }
 
 model CashSession {
-  id        Int      @id @default(autoincrement())
-  cashBoxId Int
-  apertura  Float
-  cierre    Float?
-  abiertaEn DateTime @default(now())
-  cerradaEn DateTime?
+  id          Int            @id @default(autoincrement())
+  cashBoxId   Int
+  apertura    Float
+  cierre      Float?
+  abiertaEn   DateTime       @default(now())
+  cerradaEn   DateTime?
   movimientos CashMovement[]
-  cashBox   CashBox  @relation(fields: [cashBoxId], references: [id])
+
+  cashBox CashBox @relation(fields: [cashBoxId], references: [id])
 }
 
 model CashMovement {
-  id          Int      @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   cashSessionId Int
-  tipo        String
-  concepto    String
-  monto       Float
-  createdAt   DateTime @default(now())
+  tipo          String
+  concepto      String
+  monto         Float
+  createdAt     DateTime @default(now())
+
   cashSession CashSession @relation(fields: [cashSessionId], references: [id])
 }
 
 model Customer {
-  id        Int      @id @default(autoincrement())
-  nombre    String
-  telefono  String?
-  limite    Float   @default(0)
-  saldo     Float   @default(0)
-  estado    String  @default("activo")
-  creditos  Credit[]
-  pagares   PromissoryNote[]
+  id       Int     @id @default(autoincrement())
+  nombre   String
+  telefono String?
+  limite   Float   @default(0)
+  saldo    Float   @default(0)
+  estado   String  @default("activo")
+
+  creditos     Credit[]
+  pagares      PromissoryNote[]
   asignaciones FridgeAssignment[]
 }
 
@@ -182,16 +193,20 @@ model Credit {
   customerId Int
   saldo      Float
   createdAt  DateTime @default(now())
-  pagos      CreditPayment[]
-  customer   Customer @relation(fields: [customerId], references: [id])
+
+  pagos    CreditPayment[]
+  customer Customer        @relation(fields: [customerId], references: [id])
+
+  @@index([customerId], map: "credit_customer_idx")
 }
 
 model CreditPayment {
-  id        Int      @id @default(autoincrement())
-  creditId  Int
-  monto     Float
-  fecha     DateTime @default(now())
-  credit    Credit   @relation(fields: [creditId], references: [id])
+  id       Int      @id @default(autoincrement())
+  creditId Int
+  monto    Float
+  fecha    DateTime @default(now())
+
+  credit Credit @relation(fields: [creditId], references: [id])
 }
 
 model PromissoryNote {
@@ -200,15 +215,16 @@ model PromissoryNote {
   monto      Float
   fecha      DateTime @default(now())
   estado     String   @default("vigente")
-  customer   Customer @relation(fields: [customerId], references: [id])
+
+  customer Customer @relation(fields: [customerId], references: [id])
 }
 
 model FridgeAsset {
-  id        Int      @id @default(autoincrement())
-  modelo    String
-  serie     String
-  estado    String
-  visitas   FridgeVisit[]
+  id           Int                @id @default(autoincrement())
+  modelo       String
+  serie        String
+  estado       String
+  visitas      FridgeVisit[]
   asignaciones FridgeAssignment[]
 }
 
@@ -220,26 +236,29 @@ model FridgeAssignment {
   entregadoEn DateTime
   deposito    Float?
   renta       Float?
-  asset       FridgeAsset @relation(fields: [assetId], references: [id])
-  customer    Customer    @relation(fields: [customerId], references: [id])
+
+  asset    FridgeAsset @relation(fields: [assetId], references: [id])
+  customer Customer    @relation(fields: [customerId], references: [id])
 }
 
 model FridgeVisit {
-  id         Int      @id @default(autoincrement())
-  assetId    Int
-  fecha      DateTime @default(now())
-  notas      String?
-  items      FridgeVisitItem[]
-  asset      FridgeAsset @relation(fields: [assetId], references: [id])
+  id      Int      @id @default(autoincrement())
+  assetId Int
+  fecha   DateTime @default(now())
+  notas   String?
+
+  items FridgeVisitItem[]
+  asset FridgeAsset       @relation(fields: [assetId], references: [id])
 }
 
 model FridgeVisitItem {
-  id        Int      @id @default(autoincrement())
-  visitId   Int
-  product   String
-  cantidad  Int
-  devuelto  Int
-  visit     FridgeVisit @relation(fields: [visitId], references: [id])
+  id       Int    @id @default(autoincrement())
+  visitId  Int
+  product  String
+  cantidad Int
+  devuelto Int
+
+  visit FridgeVisit @relation(fields: [visitId], references: [id])
 }
 
 model AuditLog {
@@ -248,8 +267,6 @@ model AuditLog {
   action    String
   modulo    String
   createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id])
-}
 
-@@index([fecha], map: "sale_fecha_idx")
-@@index([customerId], map: "credit_customer_idx")
+  user User? @relation(fields: [userId], references: [id])
+}
