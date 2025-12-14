@@ -30,6 +30,7 @@ model Flavor {
 model ProductType {
   id       Int       @id @default(autoincrement())
   nombre   String
+  activo   Boolean   @default(true)
   products Product[]
 }
 
@@ -43,6 +44,7 @@ model Product {
   costo        Float
   foto         String?
   stock        Int     @default(0)
+  activo       Boolean @default(true)
 
   // Relación 1:1 opcional con Recipe
   recipe Recipe?

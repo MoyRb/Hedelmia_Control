@@ -59,6 +59,10 @@ ipcMain.handle('catalogo:listar', async () => {
   return { sabores, productos, tipos };
 });
 
+ipcMain.handle('catalogo:crearTipo', async (_event, data: { nombre: string; activo?: boolean }) => {
+  return prisma.productType.create({ data: { nombre: data.nombre, activo: data.activo ?? true } });
+});
+
 ipcMain.handle('catalogo:crearSabor', async (_event, data: { nombre: string; color?: string; activo?: boolean }) => {
   return prisma.flavor.create({
     data: {
@@ -68,6 +72,16 @@ ipcMain.handle('catalogo:crearSabor', async (_event, data: { nombre: string; col
     }
   });
 });
+
+ipcMain.handle(
+  'catalogo:actualizarSabor',
+  async (_event, data: { id: number; nombre?: string; color?: string | null; activo?: boolean }) => {
+    return prisma.flavor.update({
+      where: { id: data.id },
+      data: { nombre: data.nombre, color: data.color ?? undefined, activo: data.activo }
+    });
+  }
+);
 
 ipcMain.handle(
   'catalogo:crearProducto',
@@ -83,9 +97,49 @@ ipcMain.handle(
         precio: data.precio,
         costo: data.costo,
         sku: data.sku,
-        stock: data.stock ?? 0
+        stock: data.stock ?? 0,
+        activo: true
       }
     });
+  }
+);
+
+ipcMain.handle(
+  'catalogo:actualizarProducto',
+  async (
+    _event,
+    data: {
+      id: number;
+      tipoId?: number;
+      saborId?: number;
+      presentacion?: string;
+      precio?: number;
+      costo?: number;
+      sku?: string | null;
+      stock?: number;
+      activo?: boolean;
+    }
+  ) => {
+    return prisma.product.update({
+      where: { id: data.id },
+      data: {
+        tipoId: data.tipoId,
+        saborId: data.saborId,
+        presentacion: data.presentacion,
+        precio: data.precio,
+        costo: data.costo,
+        sku: data.sku ?? undefined,
+        stock: data.stock,
+        activo: data.activo
+      }
+    });
+  }
+);
+
+ipcMain.handle(
+  'catalogo:actualizarTipo',
+  async (_event, data: { id: number; nombre?: string; activo?: boolean }) => {
+    return prisma.productType.update({ where: { id: data.id }, data: { nombre: data.nombre, activo: data.activo } });
   }
 );
 
