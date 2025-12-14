@@ -9,7 +9,7 @@
     "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:watch\" \"npm:dev:electron\"",
     "dev:renderer": "cd src/renderer && vite",
     "dev:watch": "tsc -w -p tsconfig.json",
-    "dev:electron": "wait-on tcp:5173 && wait-on \"dist/main/index.js\" && electronmon .",
+    "dev:electron": "wait-on tcp:5173 && wait-on dist/main/index.js dist/preload/index.js && electronmon --watch dist/main --watch dist/preload dist/main/index.js",
     "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
     "build:renderer": "cd src/renderer && vite build",
     "build:main": "tsc -p tsconfig.json",
