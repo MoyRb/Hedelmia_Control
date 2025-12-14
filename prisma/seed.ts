@@ -2,6 +2,15 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.payment.deleteMany();
+  await prisma.saleItem.deleteMany();
+  await prisma.sale.deleteMany();
+  await prisma.cashMovement.deleteMany();
+  await prisma.cashBox.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.flavor.deleteMany();
+  await prisma.productType.deleteMany();
+
   const admin = await prisma.user.upsert({
     where: { email: 'admin@hedelmia.local' },
     update: {},

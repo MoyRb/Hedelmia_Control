@@ -146,33 +146,24 @@ model Payment {
 }
 
 model CashBox {
-  id       Int           @id @default(autoincrement())
-  nombre   String
-  tipo     String
-  sesiones CashSession[]
-}
-
-model CashSession {
   id          Int            @id @default(autoincrement())
-  cashBoxId   Int
-  apertura    Float
-  cierre      Float?
-  abiertaEn   DateTime       @default(now())
-  cerradaEn   DateTime?
+  nombre      String
+  tipo        String
   movimientos CashMovement[]
-
-  cashBox CashBox @relation(fields: [cashBoxId], references: [id])
 }
 
 model CashMovement {
-  id            Int      @id @default(autoincrement())
-  cashSessionId Int
-  tipo          String
-  concepto      String
-  monto         Float
-  createdAt     DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  cashBoxId Int
+  tipo      String
+  concepto  String
+  monto     Float
+  fecha     DateTime @default(now())
 
-  cashSession CashSession @relation(fields: [cashSessionId], references: [id])
+  cashBox CashBox @relation(fields: [cashBoxId], references: [id])
+
+  @@index([cashBoxId], map: "cashmovement_cashbox_idx")
+  @@index([fecha], map: "cashmovement_fecha_idx")
 }
 
 model Customer {
