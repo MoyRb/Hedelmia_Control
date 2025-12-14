@@ -21,12 +21,11 @@ npm install
 ```
 
 ## Desarrollo
-En dos terminales (o usando `npm run dev`):
+El flujo de desarrollo compila el proceso main/preload en modo watch, arranca Vite y abre Electron contra los artefactos de `dist`:
 ```bash
-npm run dev:renderer  # Vite + React
-npm run dev:main      # Electron main con ts-node-dev
+npm run dev
 ```
-La app cargará en `http://localhost:5173` dentro de la ventana Electron.
+El servidor de Vite queda en `http://localhost:5173` y la ventana de Electron se abre automáticamente cuando los bundles están listos.
 
 ## Build instalador
 ```bash
@@ -36,9 +35,12 @@ npm run dist
 El instalador se genera con electron-builder.
 
 ## Base de datos y seed
+La aplicación utiliza un único archivo SQLite almacenado en la ruta `app.getPath('userData')/hedelmia.db`. Al iniciar Electron, si no existe, se copiará automáticamente una base presembrada desde `prisma/hedelmia.db` (si está disponible en el paquete).
+
+Para recrear esa base semilla o actualizar el esquema ejecuta:
 ```bash
 npx prisma generate
-npx prisma db push
+PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma db push
 npx ts-node prisma/seed.ts
 ```
 El admin inicial es `admin@hedelmia.local` / `admin123`.
