@@ -4,7 +4,18 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'fs';
 
 const isDev = !app.isPackaged;
-const dbPath = isDev ? path.join(__dirname, '../../prisma/hedelmia.db') : path.join(app.getPath('userData'), 'hedelmia.db');
+const dbPath = path.join(app.getPath('userData'), 'hedelmia.db');
+const templateDbPath = isDev
+  ? path.join(__dirname, '../../prisma/hedelmia.db')
+  : path.join(process.resourcesPath, 'prisma', 'hedelmia.db');
+
+if (!fs.existsSync(dbPath)) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  if (fs.existsSync(templateDbPath)) {
+    fs.copyFileSync(templateDbPath, dbPath);
+  }
+}
+
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? `file:${dbPath}`;
 
 const prisma = new PrismaClient();
