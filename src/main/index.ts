@@ -49,6 +49,135 @@ ipcMain.handle('backup:export', async (_event, destino: string) => {
   return { ok: true };
 });
 
+ipcMain.handle('inventario:listarMaterias', async () => {
+  const [materias, unidades] = await Promise.all([
+    prisma.rawMaterial.findMany({
+      include: { unidad: true, movimientos: { orderBy: { createdAt: 'desc' }, take: 15 } },
+      orderBy: { nombre: 'asc' }
+    }),
+    prisma.unit.findMany({ orderBy: { nombre: 'asc' } })
+  ]);
+
+  return { materias, unidades };
+});
+
+ipcMain.handle('inventario:crearUnidad', async (_event, data: { nombre: string }) => {
+  return prisma.unit.upsert({ where: { nombre: data.nombre }, update: {}, create: { nombre: data.nombre } });
+});
+
+ipcMain.handle(
+  'inventario:crearMateria',
+  async (
+    _event,
+    data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }
+  ) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const material = await tx.rawMaterial.create({
+        data: {
+          nombre: data.nombre,
+          unidadId: data.unidadId,
+          stock: data.stock ?? 0,
+          costoProm: data.costoProm ?? 0
+        }
+      });
+
+      if (data.stock && data.stock > 0) {
+        await tx.rawMaterialMovement.create({
+          data: {
+            materialId: material.id,
+            tipo: 'entrada',
+            cantidad: data.stock,
+            costoTotal: (data.costoProm ?? 0) * data.stock
+          }
+        });
+      }
+
+      return tx.rawMaterial.findUnique({
+        where: { id: material.id },
+        include: { unidad: true, movimientos: { orderBy: { createdAt: 'desc' }, take: 10 } }
+      });
+    });
+  }
+);
+
+ipcMain.handle(
+  'inventario:movimientoMateria',
+  async (
+    _event,
+    data: { materialId: number; tipo: 'entrada' | 'salida'; cantidad: number; costoTotal?: number }
+  ) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const material = await tx.rawMaterial.findUnique({ where: { id: data.materialId } });
+      if (!material) throw new Error('Material no encontrado');
+
+      const cantidad = Number(data.cantidad ?? 0);
+      if (cantidad <= 0) throw new Error('Cantidad inválida');
+
+      const costoTotal = data.costoTotal ?? 0;
+      const newStock = data.tipo === 'entrada' ? material.stock + cantidad : material.stock - cantidad;
+
+      if (newStock < 0) throw new Error('Stock insuficiente');
+
+      let newCostoProm = material.costoProm;
+      if (data.tipo === 'entrada') {
+        const totalActual = material.costoProm * material.stock;
+        newCostoProm = newStock > 0 ? (totalActual + costoTotal) / newStock : 0;
+      }
+
+      await tx.rawMaterial.update({ where: { id: material.id }, data: { stock: newStock, costoProm: newCostoProm } });
+
+      await tx.rawMaterialMovement.create({
+        data: { materialId: material.id, tipo: data.tipo, cantidad, costoTotal }
+      });
+
+      return tx.rawMaterial.findUnique({
+        where: { id: material.id },
+        include: { unidad: true, movimientos: { orderBy: { createdAt: 'desc' }, take: 15 } }
+      });
+    });
+  }
+);
+
+ipcMain.handle('inventario:listarProductosStock', async () => {
+  const productos = await prisma.product.findMany({
+    include: {
+      tipo: true,
+      sabor: true,
+      stockMoves: { orderBy: { createdAt: 'desc' }, take: 15 }
+    },
+    orderBy: { id: 'asc' }
+  });
+
+  return productos;
+});
+
+ipcMain.handle(
+  'inventario:movimientoProducto',
+  async (_event, data: { productId: number; tipo: 'entrada' | 'salida'; cantidad: number; referencia?: string }) => {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const producto = await tx.product.findUnique({ where: { id: data.productId } });
+      if (!producto) throw new Error('Producto no encontrado');
+
+      const cantidad = Number(data.cantidad ?? 0);
+      if (cantidad <= 0) throw new Error('Cantidad inválida');
+
+      const newStock = data.tipo === 'entrada' ? producto.stock + cantidad : producto.stock - cantidad;
+      if (newStock < 0) throw new Error('Stock insuficiente');
+
+      await tx.product.update({ where: { id: producto.id }, data: { stock: newStock } });
+
+      await tx.finishedStockMovement.create({
+        data: { productId: producto.id, tipo: data.tipo, cantidad, referencia: data.referencia }
+      });
+
+      return tx.product.findUnique({
+        where: { id: producto.id },
+        include: { tipo: true, sabor: true, stockMoves: { orderBy: { createdAt: 'desc' }, take: 15 } }
+      });
+    });
+  }
+);
+
 ipcMain.handle('catalogo:listar', async () => {
   const [sabores, productos, tipos] = await Promise.all([
     prisma.flavor.findMany({ orderBy: { nombre: 'asc' } }),
