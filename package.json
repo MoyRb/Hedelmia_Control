@@ -14,7 +14,7 @@
     "build:renderer": "cd src/renderer && vite build",
     "build:main": "tsc -p tsconfig.json",
     "build:prisma": "prisma generate",
-    "seed": "prisma db push && ts-node prisma/seed.ts",
+    "seed": "cross-env DATABASE_URL=\"file:./prisma/hedelmia.db\" prisma db push && cross-env DATABASE_URL=\"file:./prisma/hedelmia.db\" ts-node prisma/seed.ts",
     "lint": "eslint --ext .ts,.tsx src",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
