@@ -54,6 +54,13 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
+export type FridgeAsset = {
+  id: number;
+  modelo: string;
+  serie: string;
+  estado: 'activo' | 'inactivo' | string;
+};
+
 export type Unit = { id: number; nombre: string };
 
 export type RawMaterialMovement = {
@@ -137,6 +144,14 @@ const api = {
     ipcRenderer.invoke('clientes:actualizar', data) as Promise<Customer>,
   toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) =>
     ipcRenderer.invoke('clientes:toggleEstado', data) as Promise<Customer>,
+
+  // Refris
+  listarRefris: () => ipcRenderer.invoke('refris:listar') as Promise<FridgeAsset[]>,
+  crearRefri: (data: { modelo: string; serie: string; estado?: string }) =>
+    ipcRenderer.invoke('refris:crear', data) as Promise<FridgeAsset>,
+  actualizarRefri: (data: { id: number; modelo?: string; serie?: string; estado?: string }) =>
+    ipcRenderer.invoke('refris:actualizar', data) as Promise<FridgeAsset>,
+  toggleRefriEstado: (data: { id: number }) => ipcRenderer.invoke('refris:toggleEstado', data) as Promise<FridgeAsset>,
 
   // Ventas
   listarVentas: () => ipcRenderer.invoke('ventas:list') as Promise<unknown>,

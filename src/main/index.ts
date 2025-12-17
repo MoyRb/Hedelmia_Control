@@ -402,6 +402,43 @@ safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: '
 });
 
 // --------------------
+// Refris
+// --------------------
+safeHandle('refris:listar', async () => {
+  return prisma.fridgeAsset.findMany({ orderBy: { id: 'asc' } });
+});
+
+safeHandle('refris:crear', async (_event, data: { modelo: string; serie: string; estado?: string }) => {
+  return prisma.fridgeAsset.create({
+    data: {
+      modelo: data.modelo,
+      serie: data.serie,
+      estado: data.estado ?? 'activo'
+    }
+  });
+});
+
+safeHandle('refris:actualizar', async (_event, data: { id: number; modelo?: string; serie?: string; estado?: string }) => {
+  const { id, ...campos } = data;
+  return prisma.fridgeAsset.update({
+    where: { id },
+    data: {
+      ...(campos.modelo !== undefined ? { modelo: campos.modelo } : {}),
+      ...(campos.serie !== undefined ? { serie: campos.serie } : {}),
+      ...(campos.estado !== undefined ? { estado: campos.estado } : {})
+    }
+  });
+});
+
+safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
+  const refri = await prisma.fridgeAsset.findUnique({ where: { id: data.id } });
+  if (!refri) throw new Error('Refri no encontrado');
+
+  const nuevoEstado = refri.estado === 'activo' ? 'inactivo' : 'activo';
+  return prisma.fridgeAsset.update({ where: { id: data.id }, data: { estado: nuevoEstado } });
+});
+
+// --------------------
 // Ventas
 // --------------------
 safeHandle('ventas:list', async () => {
