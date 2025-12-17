@@ -9,6 +9,24 @@ type Customer = {
   estado: 'activo' | 'inactivo';
 };
 
+type FridgeAsset = {
+  id: number;
+  modelo: string;
+  serie: string;
+  estado: string;
+};
+
+type FridgeAssignment = {
+  id: number;
+  assetId: number;
+  customerId: number;
+  ubicacion: string;
+  entregadoEn: string;
+  deposito?: number | null;
+  renta?: number | null;
+  asset: FridgeAsset;
+};
+
 type ClienteForm = {
   nombre: string;
   telefono: string;
@@ -34,6 +52,25 @@ export default function Clientes() {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [asignaciones, setAsignaciones] = useState<FridgeAssignment[]>([]);
+  const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
+  const [mostrandoModalAsignacion, setMostrandoModalAsignacion] = useState(false);
+  const [refrisDisponibles, setRefrisDisponibles] = useState<FridgeAsset[]>([]);
+  const [guardandoAsignacion, setGuardandoAsignacion] = useState(false);
+  const [eliminandoAsignacionId, setEliminandoAsignacionId] = useState<number | null>(null);
+  const [formAsignacion, setFormAsignacion] = useState<{
+    assetId: string;
+    ubicacion: string;
+    entregadoEn: string;
+    deposito: string;
+    renta: string;
+  }>({
+    assetId: '',
+    ubicacion: '',
+    entregadoEn: new Date().toISOString().slice(0, 10),
+    deposito: '',
+    renta: ''
+  });
 
   const cargarClientes = async () => {
     setCargando(true);
@@ -49,6 +86,40 @@ export default function Clientes() {
     }
   };
 
+  const cargarAsignacionesCliente = async (clienteId: number) => {
+    setCargandoAsignaciones(true);
+    setError('');
+    try {
+      const data = await window.hedelmia.listarAsignacionesCliente(clienteId);
+      setAsignaciones(data);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar las asignaciones de refris.');
+    } finally {
+      setCargandoAsignaciones(false);
+    }
+  };
+
+  const cargarRefrisDisponibles = async () => {
+    setError('');
+    try {
+      const disponibles = await window.hedelmia.listarRefrisDisponibles();
+      setRefrisDisponibles(disponibles);
+      setFormAsignacion((f) => ({
+        ...f,
+        assetId: disponibles[0]?.id.toString() ?? '',
+        ubicacion: '',
+        deposito: '',
+        renta: '',
+        entregadoEn: new Date().toISOString().slice(0, 10)
+      }));
+      setMostrandoModalAsignacion(true);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar los refris disponibles.');
+    }
+  };
+
   useEffect(() => {
     cargarClientes();
   }, []);
@@ -56,6 +127,7 @@ export default function Clientes() {
   const abrirNuevo = () => {
     setEditando(null);
     setForm(emptyForm);
+    setAsignaciones([]);
     setMostrandoModal(true);
     setMensaje('');
     setError('');
@@ -70,6 +142,8 @@ export default function Clientes() {
       saldo: cliente.saldo.toString(),
       estado: cliente.estado
     });
+    setAsignaciones([]);
+    cargarAsignacionesCliente(cliente.id);
     setMostrandoModal(true);
     setMensaje('');
     setError('');
@@ -79,6 +153,8 @@ export default function Clientes() {
     setMostrandoModal(false);
     setEditando(null);
     setForm(emptyForm);
+    setAsignaciones([]);
+    setMostrandoModalAsignacion(false);
   };
 
   const guardarCliente = async () => {
@@ -130,6 +206,63 @@ export default function Clientes() {
     } finally {
       setGuardando(false);
     }
+  };
+
+  const guardarAsignacion = async () => {
+    if (!editando || guardandoAsignacion) return;
+    if (!formAsignacion.assetId) {
+      setError('Selecciona un refri disponible.');
+      return;
+    }
+    if (!formAsignacion.ubicacion.trim()) {
+      setError('La ubicación es obligatoria.');
+      return;
+    }
+    if (!formAsignacion.entregadoEn) {
+      setError('La fecha de entrega es obligatoria.');
+      return;
+    }
+    setGuardandoAsignacion(true);
+    setError('');
+    try {
+      const deposito = formAsignacion.deposito.trim() ? parseFloat(formAsignacion.deposito) : undefined;
+      const renta = formAsignacion.renta.trim() ? parseFloat(formAsignacion.renta) : undefined;
+      await window.hedelmia.crearAsignacionRefri({
+        customerId: editando.id,
+        assetId: parseInt(formAsignacion.assetId, 10),
+        ubicacion: formAsignacion.ubicacion.trim(),
+        entregadoEn: formAsignacion.entregadoEn,
+        deposito: isNaN(deposito ?? NaN) ? undefined : deposito,
+        renta: isNaN(renta ?? NaN) ? undefined : renta
+      });
+      await cargarAsignacionesCliente(editando.id);
+      setMostrandoModalAsignacion(false);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo asignar el refri.');
+    } finally {
+      setGuardandoAsignacion(false);
+    }
+  };
+
+  const eliminarAsignacion = async (id: number) => {
+    if (eliminandoAsignacionId) return;
+    setEliminandoAsignacionId(id);
+    setError('');
+    try {
+      await window.hedelmia.eliminarAsignacionRefri(id);
+      setAsignaciones((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo quitar la asignación.');
+    } finally {
+      setEliminandoAsignacionId(null);
+    }
+  };
+
+  const formatearFecha = (fecha: string) => {
+    const date = new Date(fecha);
+    return isNaN(date.getTime()) ? fecha : date.toLocaleDateString('es-MX');
   };
 
   const toggleEstado = async (cliente: Customer) => {
@@ -251,9 +384,145 @@ export default function Clientes() {
                 </select>
               </label>
             </div>
+            {editando ? (
+              <div className="border-t border-secondary/50 pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-semibold text-sm">Refris asignados</h5>
+                  <button className="text-primary text-sm" onClick={cargarRefrisDisponibles} disabled={guardandoAsignacion}>
+                    Asignar refri
+                  </button>
+                </div>
+                {cargandoAsignaciones ? (
+                  <p className="text-xs text-gray-500">Cargando asignaciones...</p>
+                ) : asignaciones.length === 0 ? (
+                  <p className="text-xs text-gray-600">Este cliente no tiene refris asignados.</p>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-600">
+                        <th>Modelo</th>
+                        <th>Serie</th>
+                        <th>Ubicación</th>
+                        <th>Entregado</th>
+                        <th>Depósito</th>
+                        <th>Renta</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asignaciones.map((a) => (
+                        <tr key={a.id} className="border-b border-secondary/50">
+                          <td className="py-1">{a.asset.modelo}</td>
+                          <td>{a.asset.serie}</td>
+                          <td>{a.ubicacion}</td>
+                          <td>{formatearFecha(a.entregadoEn)}</td>
+                          <td>{a.deposito !== null && a.deposito !== undefined ? `$${a.deposito.toFixed(2)}` : '—'}</td>
+                          <td>{a.renta !== null && a.renta !== undefined ? `$${a.renta.toFixed(2)}` : '—'}</td>
+                          <td className="text-right">
+                            <button
+                              className="text-red-600"
+                              onClick={() => eliminarAsignacion(a.id)}
+                              disabled={eliminandoAsignacionId === a.id}
+                            >
+                              {eliminandoAsignacionId === a.id ? 'Quitando...' : 'Quitar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-600 border-t border-secondary/50 pt-3">
+                Guarda el cliente para asignar un refri.
+              </p>
+            )}
             <button className="btn w-full" onClick={guardarCliente} disabled={guardando}>
               {guardando ? 'Guardando...' : editando ? 'Actualizar cliente' : 'Crear cliente'}
             </button>
+          </div>
+        </div>
+      )}
+      {mostrandoModalAsignacion && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-30">
+          <div className="bg-white rounded-lg shadow-xl p-4 w-full max-w-md space-y-3">
+            <div className="flex items-center justify-between">
+              <h5 className="font-semibold">Asignar refri</h5>
+              <button onClick={() => setMostrandoModalAsignacion(false)} className="text-sm">
+                Cerrar
+              </button>
+            </div>
+            {refrisDisponibles.length === 0 ? (
+              <p className="text-sm text-gray-600">No hay refris disponibles para asignar.</p>
+            ) : (
+              <>
+                <label className="flex flex-col text-sm gap-1">
+                  Refri
+                  <select
+                    className="input"
+                    value={formAsignacion.assetId}
+                    onChange={(e) => setFormAsignacion((f) => ({ ...f, assetId: e.target.value }))}
+                  >
+                    {refrisDisponibles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.modelo} — Serie {r.serie}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col text-sm gap-1">
+                  Ubicación
+                  <input
+                    className="input"
+                    value={formAsignacion.ubicacion}
+                    onChange={(e) => setFormAsignacion((f) => ({ ...f, ubicacion: e.target.value }))}
+                    placeholder="Ej. mostrador, entrada, patio"
+                  />
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <label className="flex flex-col text-sm gap-1">
+                    Fecha de entrega
+                    <input
+                      className="input"
+                      type="date"
+                      value={formAsignacion.entregadoEn}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, entregadoEn: e.target.value }))}
+                    />
+                  </label>
+                  <label className="flex flex-col text-sm gap-1">
+                    Depósito
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={formAsignacion.deposito}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, deposito: e.target.value }))}
+                      placeholder="Opcional"
+                    />
+                  </label>
+                  <label className="flex flex-col text-sm gap-1">
+                    Renta
+                    <input
+                      className="input"
+                      type="number"
+                      min={0}
+                      value={formAsignacion.renta}
+                      onChange={(e) => setFormAsignacion((f) => ({ ...f, renta: e.target.value }))}
+                      placeholder="Opcional"
+                    />
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button className="px-3 py-2 rounded border" onClick={() => setMostrandoModalAsignacion(false)}>
+                    Cancelar
+                  </button>
+                  <button className="btn px-3 py-2" onClick={guardarAsignacion} disabled={guardandoAsignacion}>
+                    {guardandoAsignacion ? 'Guardando...' : 'Guardar asignación'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
