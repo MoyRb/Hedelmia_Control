@@ -54,11 +54,23 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
+export type FridgeAssignment = {
+  id: number;
+  assetId: number;
+  customerId: number;
+  ubicacion: string;
+  entregadoEn: string;
+  deposito?: number | null;
+  renta?: number | null;
+  customer: Customer;
+};
+
 export type FridgeAsset = {
   id: number;
   modelo: string;
   serie: string;
   estado: 'activo' | 'inactivo' | string;
+  asignaciones?: FridgeAssignment[];
 };
 
 export type Unit = { id: number; nombre: string };

@@ -5,6 +5,14 @@ type Refri = {
   modelo: string;
   serie: string;
   estado: 'activo' | 'inactivo' | string;
+  asignaciones?: RefriAsignacion[];
+};
+
+type RefriAsignacion = {
+  id: number;
+  entregadoEn: string;
+  ubicacion: string;
+  customer?: { id: number; nombre: string };
 };
 
 type RefriForm = {
@@ -108,6 +116,14 @@ export default function Refris() {
     }
   };
 
+  const obtenerAsignacionLabel = (refri: Refri) => {
+    const asignacion = refri.asignaciones?.[0];
+    if (!asignacion) return 'Sin asignar';
+
+    const cliente = asignacion.customer?.nombre ?? 'Cliente desconocido';
+    return asignacion.ubicacion ? `${cliente} — ${asignacion.ubicacion}` : cliente;
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -132,6 +148,7 @@ export default function Refris() {
                 <th>ID</th>
                 <th>Modelo</th>
                 <th>Serie</th>
+                <th>Asignado a</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -142,6 +159,7 @@ export default function Refris() {
                   <td className="py-1">{r.id}</td>
                   <td>{r.modelo}</td>
                   <td>{r.serie}</td>
+                  <td>{obtenerAsignacionLabel(r)}</td>
                   <td className="capitalize">{r.estado}</td>
                   <td className="space-x-2 text-right">
                     <button className="text-primary text-sm" onClick={() => abrirEditar(r)}>
