@@ -405,7 +405,16 @@ safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: '
 // Refris
 // --------------------
 safeHandle('refris:listar', async () => {
-  return prisma.fridgeAsset.findMany({ orderBy: { id: 'asc' } });
+  return prisma.fridgeAsset.findMany({
+    include: {
+      asignaciones: {
+        include: { customer: true },
+        orderBy: { entregadoEn: 'desc' },
+        take: 1
+      }
+    },
+    orderBy: { id: 'asc' }
+  });
 });
 
 safeHandle('refris:crear', async (_event, data: { modelo: string; serie: string; estado?: string }) => {
@@ -435,7 +444,17 @@ safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
   if (!refri) throw new Error('Refri no encontrado');
 
   const nuevoEstado = refri.estado === 'activo' ? 'inactivo' : 'activo';
-  return prisma.fridgeAsset.update({ where: { id: data.id }, data: { estado: nuevoEstado } });
+  return prisma.fridgeAsset.update({
+    where: { id: data.id },
+    data: { estado: nuevoEstado },
+    include: {
+      asignaciones: {
+        include: { customer: true },
+        orderBy: { entregadoEn: 'desc' },
+        take: 1
+      }
+    }
+  });
 });
 
 // --------------------
