@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type Flavor = { id: number; nombre: string; color?: string | null; activo: boolean };
-type ProductType = { id: number; nombre: string };
+type ProductType = { id: number; nombre: string; activo: boolean };
 type Product = {
   id: number;
   sku?: string | null;
@@ -9,10 +9,12 @@ type Product = {
   precio: number;
   costo: number;
   stock: number;
+  activo: boolean;
   tipo: ProductType;
   sabor: Flavor;
 };
 
+const emptyTipo = { nombre: '', activo: true };
 const emptySabor = { nombre: '', color: '', activo: true };
 const emptyProducto = {
   tipoId: 0,
@@ -21,58 +23,218 @@ const emptyProducto = {
   precio: '',
   costo: '',
   sku: '',
-  stock: '0'
+  stock: '0',
+  activo: true
 };
 
 export default function Catalogo() {
   const [sabores, setSabores] = useState<Flavor[]>([]);
   const [productos, setProductos] = useState<Product[]>([]);
   const [tipos, setTipos] = useState<ProductType[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Modales
+  const [mostrarTipo, setMostrarTipo] = useState(false);
   const [mostrarSabor, setMostrarSabor] = useState(false);
   const [mostrarProducto, setMostrarProducto] = useState(false);
+
+  // Edit mode
+  const [editTipoId, setEditTipoId] = useState<number | null>(null);
+  const [editSaborId, setEditSaborId] = useState<number | null>(null);
+  const [editProductoId, setEditProductoId] = useState<number | null>(null);
+
+  // Forms
+  const [nuevoTipo, setNuevoTipo] = useState(emptyTipo);
   const [nuevoSabor, setNuevoSabor] = useState(emptySabor);
   const [nuevoProducto, setNuevoProducto] = useState<typeof emptyProducto>(emptyProducto);
-  const [cargando, setCargando] = useState(true);
 
   const cargarCatalogo = async () => {
-    setCargando(true);
-    const data = await window.hedelmia.listarCatalogo();
-    setSabores(data.sabores);
-    setProductos(data.productos);
-    setTipos(data.tipos);
-    setCargando(false);
+    try {
+      setError(null);
+      setCargando(true);
+      const data = await window.hedelmia.listarCatalogo();
+      setSabores(data.sabores ?? []);
+      setProductos(data.productos ?? []);
+      setTipos(data.tipos ?? []);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setCargando(false);
+    }
   };
 
   useEffect(() => {
     cargarCatalogo();
   }, []);
 
+  const tipoNombrePorId = useMemo(() => {
+    const m = new Map<number, string>();
+    tipos.forEach((t) => m.set(t.id, t.nombre));
+    return m;
+  }, [tipos]);
+
+  const saborNombrePorId = useMemo(() => {
+    const m = new Map<number, string>();
+    sabores.forEach((s) => m.set(s.id, s.nombre));
+    return m;
+  }, [sabores]);
+
+  // ========== TIPOS ==========
+  const abrirCrearTipo = () => {
+    setEditTipoId(null);
+    setNuevoTipo(emptyTipo);
+    setMostrarTipo(true);
+  };
+
+  const abrirEditarTipo = (t: ProductType) => {
+    setEditTipoId(t.id);
+    setNuevoTipo({ nombre: t.nombre, activo: t.activo });
+    setMostrarTipo(true);
+  };
+
+  const guardarTipo = async () => {
+    if (!nuevoTipo.nombre.trim()) return;
+    try {
+      setError(null);
+      if (editTipoId) {
+        await window.hedelmia.actualizarTipo({ id: editTipoId, nombre: nuevoTipo.nombre.trim(), activo: nuevoTipo.activo });
+      } else {
+        await window.hedelmia.crearTipo({ nombre: nuevoTipo.nombre.trim(), activo: nuevoTipo.activo });
+      }
+      setMostrarTipo(false);
+      setEditTipoId(null);
+      setNuevoTipo(emptyTipo);
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const toggleTipo = async (t: ProductType) => {
+    try {
+      setError(null);
+      await window.hedelmia.toggleTipo({ id: t.id, activo: !t.activo });
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  // ========== SABORES ==========
+  const abrirCrearSabor = () => {
+    setEditSaborId(null);
+    setNuevoSabor(emptySabor);
+    setMostrarSabor(true);
+  };
+
+  const abrirEditarSabor = (s: Flavor) => {
+    setEditSaborId(s.id);
+    setNuevoSabor({ nombre: s.nombre, color: s.color ?? '', activo: s.activo });
+    setMostrarSabor(true);
+  };
+
   const guardarSabor = async () => {
     if (!nuevoSabor.nombre.trim()) return;
-    await window.hedelmia.crearSabor({
-      nombre: nuevoSabor.nombre,
-      color: nuevoSabor.color || undefined,
-      activo: nuevoSabor.activo
+    try {
+      setError(null);
+      if (editSaborId) {
+        await window.hedelmia.actualizarSabor({
+          id: editSaborId,
+          nombre: nuevoSabor.nombre.trim(),
+          color: nuevoSabor.color ? nuevoSabor.color : null,
+          activo: nuevoSabor.activo
+        });
+      } else {
+        await window.hedelmia.crearSabor({
+          nombre: nuevoSabor.nombre.trim(),
+          color: nuevoSabor.color || undefined,
+          activo: nuevoSabor.activo
+        });
+      }
+      setMostrarSabor(false);
+      setEditSaborId(null);
+      setNuevoSabor(emptySabor);
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const toggleSabor = async (s: Flavor) => {
+    try {
+      setError(null);
+      await window.hedelmia.toggleSabor({ id: s.id, activo: !s.activo });
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  // ========== PRODUCTOS ==========
+  const abrirCrearProducto = () => {
+    setEditProductoId(null);
+    setNuevoProducto(emptyProducto);
+    setMostrarProducto(true);
+  };
+
+  const abrirEditarProducto = (p: Product) => {
+    setEditProductoId(p.id);
+    setNuevoProducto({
+      tipoId: p.tipo?.id ?? 0,
+      saborId: p.sabor?.id ?? 0,
+      presentacion: p.presentacion ?? '',
+      precio: String(p.precio ?? ''),
+      costo: String(p.costo ?? ''),
+      sku: p.sku ?? '',
+      stock: String(p.stock ?? 0),
+      activo: p.activo
     });
-    setMostrarSabor(false);
-    setNuevoSabor(emptySabor);
-    cargarCatalogo();
+    setMostrarProducto(true);
   };
 
   const guardarProducto = async () => {
     if (!nuevoProducto.presentacion.trim() || !nuevoProducto.tipoId || !nuevoProducto.saborId) return;
-    await window.hedelmia.crearProducto({
+
+    const payload = {
       tipoId: Number(nuevoProducto.tipoId),
       saborId: Number(nuevoProducto.saborId),
-      presentacion: nuevoProducto.presentacion,
+      presentacion: nuevoProducto.presentacion.trim(),
       precio: parseFloat(String(nuevoProducto.precio)),
       costo: parseFloat(String(nuevoProducto.costo)),
-      sku: nuevoProducto.sku || undefined,
-      stock: parseInt(String(nuevoProducto.stock || 0), 10)
-    });
-    setMostrarProducto(false);
-    setNuevoProducto(emptyProducto);
-    cargarCatalogo();
+      sku: nuevoProducto.sku?.trim() ? nuevoProducto.sku.trim() : null,
+      stock: parseInt(String(nuevoProducto.stock || 0), 10),
+      activo: !!nuevoProducto.activo
+    };
+
+    try {
+      setError(null);
+      if (editProductoId) {
+        await window.hedelmia.actualizarProducto({ id: editProductoId, ...payload });
+      } else {
+        // crearProducto acepta sku?: string y stock?: number; activo?: boolean (según tu preload)
+        await window.hedelmia.crearProducto({
+          ...payload,
+          sku: payload.sku ?? undefined
+        });
+      }
+      setMostrarProducto(false);
+      setEditProductoId(null);
+      setNuevoProducto(emptyProducto);
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const toggleProducto = async (p: Product) => {
+    try {
+      setError(null);
+      await window.hedelmia.toggleProducto({ id: p.id, activo: !p.activo });
+      await cargarCatalogo();
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
   };
 
   return (
@@ -80,39 +242,89 @@ export default function Catalogo() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Catálogo de productos y sabores</h2>
         <div className="flex gap-2">
-          <button className="btn" onClick={() => setMostrarSabor(true)}>
-            Agregar sabor
-          </button>
-          <button className="btn" onClick={() => setMostrarProducto(true)}>
-            Agregar producto
-          </button>
+          <button className="btn" onClick={abrirCrearTipo}>Agregar tipo</button>
+          <button className="btn" onClick={abrirCrearSabor}>Agregar sabor</button>
+          <button className="btn" onClick={abrirCrearProducto}>Agregar producto</button>
         </div>
       </div>
+
+      {error && (
+        <div className="card p-3 text-sm text-red-700 bg-red-50">
+          {error}
+        </div>
+      )}
+
       {cargando ? (
         <p className="text-sm text-gray-500">Cargando catálogo...</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="card p-4">
-            <h3 className="font-semibold mb-2">Sabores</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-600">
-                  <th>Nombre</th>
-                  <th>Color</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sabores.map((sabor) => (
-                  <tr key={sabor.id} className="border-b border-secondary/50">
-                    <td className="py-1">{sabor.nombre}</td>
-                    <td>{sabor.color ?? '—'}</td>
-                    <td>{sabor.activo ? 'Activo' : 'Inactivo'}</td>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* TIPOS */}
+            <div className="card p-4">
+              <h3 className="font-semibold mb-2">Tipos</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-600">
+                    <th>Nombre</th>
+                    <th>Estado</th>
+                    <th className="text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tipos.map((t) => (
+                    <tr key={t.id} className="border-b border-secondary/50">
+                      <td className="py-1">{t.nombre}</td>
+                      <td>{t.activo ? 'Activo' : 'Inactivo'}</td>
+                      <td className="py-1 text-right">
+                        <button className="text-primary hover:underline mr-3" onClick={() => abrirEditarTipo(t)}>Editar</button>
+                        <button className="text-primary hover:underline" onClick={() => toggleTipo(t)}>
+                          {t.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {tipos.length === 0 && (
+                    <tr><td className="py-2 text-gray-500" colSpan={3}>No hay tipos aún.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* SABORES */}
+            <div className="card p-4">
+              <h3 className="font-semibold mb-2">Sabores</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-600">
+                    <th>Nombre</th>
+                    <th>Color</th>
+                    <th>Estado</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sabores.map((s) => (
+                    <tr key={s.id} className="border-b border-secondary/50">
+                      <td className="py-1">{s.nombre}</td>
+                      <td>{s.color ?? '—'}</td>
+                      <td>{s.activo ? 'Activo' : 'Inactivo'}</td>
+                      <td className="py-1 text-right">
+                        <button className="text-primary hover:underline mr-3" onClick={() => abrirEditarSabor(s)}>Editar</button>
+                        <button className="text-primary hover:underline" onClick={() => toggleSabor(s)}>
+                          {s.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {sabores.length === 0 && (
+                    <tr><td className="py-2 text-gray-500" colSpan={4}>No hay sabores aún.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* PRODUCTOS */}
           <div className="card p-4">
             <h3 className="font-semibold mb-2">Productos</h3>
             <table className="w-full text-sm">
@@ -123,77 +335,95 @@ export default function Catalogo() {
                   <th>Sabor</th>
                   <th>Presentación</th>
                   <th>Precio</th>
+                  <th>Estado</th>
+                  <th className="text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {productos.map((p) => (
                   <tr key={p.id} className="border-b border-secondary/50">
                     <td className="py-1">{p.sku ?? '—'}</td>
-                    <td className="capitalize">{p.tipo.nombre}</td>
-                    <td>{p.sabor.nombre}</td>
+                    <td className="capitalize">{p.tipo?.nombre ?? tipoNombrePorId.get((p as any).tipoId) ?? '—'}</td>
+                    <td>{p.sabor?.nombre ?? saborNombrePorId.get((p as any).saborId) ?? '—'}</td>
                     <td>{p.presentacion}</td>
                     <td>${p.precio.toFixed(2)}</td>
+                    <td>{p.activo ? 'Activo' : 'Inactivo'}</td>
+                    <td className="py-1 text-right">
+                      <button className="text-primary hover:underline mr-3" onClick={() => abrirEditarProducto(p)}>Editar</button>
+                      <button className="text-primary hover:underline" onClick={() => toggleProducto(p)}>
+                        {p.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
+                {productos.length === 0 && (
+                  <tr><td className="py-2 text-gray-500" colSpan={7}>No hay productos aún.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {mostrarSabor && (
+      {/* MODAL TIPO */}
+      {mostrarTipo && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
           <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-md space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold">Nuevo sabor</h4>
-              <button onClick={() => setMostrarSabor(false)}>Cerrar</button>
+              <h4 className="font-semibold">{editTipoId ? 'Editar tipo' : 'Nuevo tipo'}</h4>
+              <button onClick={() => setMostrarTipo(false)}>Cerrar</button>
             </div>
             <label className="flex flex-col text-sm gap-1">
               Nombre
-              <input
-                className="input"
-                value={nuevoSabor.nombre}
-                onChange={(e) => setNuevoSabor((s) => ({ ...s, nombre: e.target.value }))}
-              />
-            </label>
-            <label className="flex flex-col text-sm gap-1">
-              Color (opcional)
-              <input
-                className="input"
-                value={nuevoSabor.color}
-                onChange={(e) => setNuevoSabor((s) => ({ ...s, color: e.target.value }))}
-              />
+              <input className="input" value={nuevoTipo.nombre} onChange={(e) => setNuevoTipo((t) => ({ ...t, nombre: e.target.value }))} />
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={nuevoSabor.activo}
-                onChange={(e) => setNuevoSabor((s) => ({ ...s, activo: e.target.checked }))}
-              />
+              <input type="checkbox" checked={nuevoTipo.activo} onChange={(e) => setNuevoTipo((t) => ({ ...t, activo: e.target.checked }))} />
               Activo
             </label>
-            <button className="btn w-full" onClick={guardarSabor}>
-              Guardar sabor
-            </button>
+            <button className="btn w-full" onClick={guardarTipo}>Guardar</button>
           </div>
         </div>
       )}
 
+      {/* MODAL SABOR */}
+      {mostrarSabor && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
+          <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-md space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold">{editSaborId ? 'Editar sabor' : 'Nuevo sabor'}</h4>
+              <button onClick={() => setMostrarSabor(false)}>Cerrar</button>
+            </div>
+            <label className="flex flex-col text-sm gap-1">
+              Nombre
+              <input className="input" value={nuevoSabor.nombre} onChange={(e) => setNuevoSabor((s) => ({ ...s, nombre: e.target.value }))} />
+            </label>
+            <label className="flex flex-col text-sm gap-1">
+              Color (opcional)
+              <input className="input" value={nuevoSabor.color ?? ''} onChange={(e) => setNuevoSabor((s) => ({ ...s, color: e.target.value }))} />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={nuevoSabor.activo} onChange={(e) => setNuevoSabor((s) => ({ ...s, activo: e.target.checked }))} />
+              Activo
+            </label>
+            <button className="btn w-full" onClick={guardarSabor}>Guardar</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PRODUCTO */}
       {mostrarProducto && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
           <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-lg space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold">Nuevo producto</h4>
+              <h4 className="font-semibold">{editProductoId ? 'Editar producto' : 'Nuevo producto'}</h4>
               <button onClick={() => setMostrarProducto(false)}>Cerrar</button>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="flex flex-col text-sm gap-1">
                 Tipo
-                <select
-                  className="input"
-                  value={nuevoProducto.tipoId}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, tipoId: Number(e.target.value) }))}
-                >
+                <select className="input" value={nuevoProducto.tipoId} onChange={(e) => setNuevoProducto((p) => ({ ...p, tipoId: Number(e.target.value) }))}>
                   <option value={0}>Selecciona tipo</option>
                   {tipos.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -202,13 +432,10 @@ export default function Catalogo() {
                   ))}
                 </select>
               </label>
+
               <label className="flex flex-col text-sm gap-1">
                 Sabor
-                <select
-                  className="input"
-                  value={nuevoProducto.saborId}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, saborId: Number(e.target.value) }))}
-                >
+                <select className="input" value={nuevoProducto.saborId} onChange={(e) => setNuevoProducto((p) => ({ ...p, saborId: Number(e.target.value) }))}>
                   <option value={0}>Selecciona sabor</option>
                   {sabores.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -217,53 +444,39 @@ export default function Catalogo() {
                   ))}
                 </select>
               </label>
+
               <label className="flex flex-col text-sm gap-1">
                 Presentación
-                <input
-                  className="input"
-                  value={nuevoProducto.presentacion}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, presentacion: e.target.value }))}
-                />
+                <input className="input" value={nuevoProducto.presentacion} onChange={(e) => setNuevoProducto((p) => ({ ...p, presentacion: e.target.value }))} />
               </label>
+
               <label className="flex flex-col text-sm gap-1">
                 Precio
-                <input
-                  className="input"
-                  type="number"
-                  value={nuevoProducto.precio}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, precio: e.target.value }))}
-                />
+                <input className="input" type="number" value={nuevoProducto.precio} onChange={(e) => setNuevoProducto((p) => ({ ...p, precio: e.target.value }))} />
               </label>
+
               <label className="flex flex-col text-sm gap-1">
                 Costo
-                <input
-                  className="input"
-                  type="number"
-                  value={nuevoProducto.costo}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, costo: e.target.value }))}
-                />
+                <input className="input" type="number" value={nuevoProducto.costo} onChange={(e) => setNuevoProducto((p) => ({ ...p, costo: e.target.value }))} />
               </label>
+
               <label className="flex flex-col text-sm gap-1">
-                Stock inicial
-                <input
-                  className="input"
-                  type="number"
-                  value={nuevoProducto.stock}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, stock: e.target.value }))}
-                />
+                Stock
+                <input className="input" type="number" value={nuevoProducto.stock} onChange={(e) => setNuevoProducto((p) => ({ ...p, stock: e.target.value }))} />
               </label>
+
               <label className="flex flex-col text-sm gap-1 md:col-span-2">
                 SKU (opcional)
-                <input
-                  className="input"
-                  value={nuevoProducto.sku}
-                  onChange={(e) => setNuevoProducto((p) => ({ ...p, sku: e.target.value }))}
-                />
+                <input className="input" value={nuevoProducto.sku} onChange={(e) => setNuevoProducto((p) => ({ ...p, sku: e.target.value }))} />
+              </label>
+
+              <label className="flex items-center gap-2 text-sm md:col-span-2">
+                <input type="checkbox" checked={nuevoProducto.activo} onChange={(e) => setNuevoProducto((p) => ({ ...p, activo: e.target.checked }))} />
+                Activo
               </label>
             </div>
-            <button className="btn w-full" onClick={guardarProducto}>
-              Guardar producto
-            </button>
+
+            <button className="btn w-full" onClick={guardarProducto}>Guardar</button>
           </div>
         </div>
       )}
