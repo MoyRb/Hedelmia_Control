@@ -1,25 +1,65 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+/** ===== Tipos ===== */
 export type Flavor = { id: number; nombre: string; color?: string | null; activo: boolean };
-export type ProductType = { id: number; nombre: string };
+
+export type ProductType = { id: number; nombre: string; activo: boolean };
+
+export type FinishedStockMovement = {
+  id: number;
+  productId: number;
+  tipo: string;
+  cantidad: number;
+  referencia?: string | null;
+  createdAt: string;
+};
+
 export type Product = {
   id: number;
   sku?: string | null;
+  tipoId: number;
+  saborId: number;
   presentacion: string;
   precio: number;
   costo: number;
+  foto?: string | null;
   stock: number;
-  tipoId?: number;
-  saborId?: number;
+  activo: boolean;
   tipo: ProductType;
   sabor: Flavor;
 };
 
+export type CashMovement = {
+  id: number;
+  cashBoxId: number;
+  tipo: string;
+  concepto: string;
+  monto: number;
+  fecha: string;
+};
+
+export type CashBox = {
+  id: number;
+  nombre: string;
+  tipo: string;
+  movimientos: CashMovement[];
+};
+
+export type Customer = {
+  id: number;
+  nombre: string;
+  telefono?: string | null;
+  limite: number;
+  saldo: number;
+  estado: 'activo' | 'inactivo' | string;
+};
+
 export type Unit = { id: number; nombre: string };
+
 export type RawMaterialMovement = {
   id: number;
   materialId: number;
-  tipo: 'entrada' | 'salida';
+  tipo: string;
   cantidad: number;
   costoTotal: number;
   createdAt: string;
@@ -28,36 +68,36 @@ export type RawMaterialMovement = {
 export type RawMaterial = {
   id: number;
   nombre: string;
+  unidadId: number;
   stock: number;
   costoProm: number;
-  unidad: Unit;
+  unidad?: Unit;
   movimientos?: RawMaterialMovement[];
 };
 
-export type FinishedStockMovement = {
-  id: number;
-  productId: number;
-  tipo: 'entrada' | 'salida';
-  cantidad: number;
-  referencia?: string | null;
-  createdAt: string;
-};
+/** ===== API ===== */
+const api = {
+  // Backup
+  exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino) as Promise<{ ok: boolean }>,
 
-export type CashMovement = { id: number; cashBoxId: number; tipo: string; concepto: string; monto: number; fecha: string };
-export type CashBox = { id: number; nombre: string; tipo: string; movimientos: CashMovement[] };
-export type Customer = {
-  id: number;
-  nombre: string;
-  telefono?: string | null;
-  limite: number;
-  saldo: number;
-  estado: 'activo' | 'inactivo';
-};
+  // Catálogo
+  listarCatalogo: () =>
+    ipcRenderer.invoke('catalogo:listar') as Promise<{ sabores: Flavor[]; productos: Product[]; tipos: ProductType[] }>,
 
-contextBridge.exposeInMainWorld('hedelmia', {
-  exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino),
-  listarCatalogo: () => ipcRenderer.invoke('catalogo:listar') as Promise<{ sabores: Flavor[]; productos: Product[]; tipos: ProductType[] }>,
-  crearSabor: (data: { nombre: string; color?: string; activo?: boolean }) => ipcRenderer.invoke('catalogo:crearSabor', data),
+  crearTipo: (data: { nombre: string; activo?: boolean }) =>
+    ipcRenderer.invoke('catalogo:crearTipo', data) as Promise<ProductType>,
+  actualizarTipo: (data: { id: number; nombre: string; activo?: boolean }) =>
+    ipcRenderer.invoke('catalogo:actualizarTipo', data) as Promise<ProductType>,
+  toggleTipo: (data: { id: number; activo: boolean }) =>
+    ipcRenderer.invoke('catalogo:toggleTipo', data) as Promise<ProductType>,
+
+  crearSabor: (data: { nombre: string; color?: string; activo?: boolean }) =>
+    ipcRenderer.invoke('catalogo:crearSabor', data) as Promise<Flavor>,
+  actualizarSabor: (data: { id: number; nombre: string; color?: string | null; activo?: boolean }) =>
+    ipcRenderer.invoke('catalogo:actualizarSabor', data) as Promise<Flavor>,
+  toggleSabor: (data: { id: number; activo: boolean }) =>
+    ipcRenderer.invoke('catalogo:toggleSabor', data) as Promise<Flavor>,
+
   crearProducto: (data: {
     tipoId: number;
     saborId: number;
@@ -66,91 +106,63 @@ contextBridge.exposeInMainWorld('hedelmia', {
     costo: number;
     sku?: string;
     stock?: number;
-  }) => ipcRenderer.invoke('catalogo:crearProducto', data),
+    activo?: boolean;
+  }) => ipcRenderer.invoke('catalogo:crearProducto', data) as Promise<Product>,
+
+  actualizarProducto: (data: {
+    id: number;
+    tipoId: number;
+    saborId: number;
+    presentacion: string;
+    precio: number;
+    costo: number;
+    sku?: string | null;
+    stock?: number;
+    activo?: boolean;
+  }) => ipcRenderer.invoke('catalogo:actualizarProducto', data) as Promise<Product>,
+
+  toggleProducto: (data: { id: number; activo: boolean }) =>
+    ipcRenderer.invoke('catalogo:toggleProducto', data) as Promise<Product>,
+
+  // Cajas
   listarCajas: () => ipcRenderer.invoke('cajas:listarMovimientos') as Promise<CashBox[]>,
   crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) =>
-    ipcRenderer.invoke('cajas:crearMovimiento', data),
-  listarVentas: () => ipcRenderer.invoke('ventas:list'),
-  crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) =>
-    ipcRenderer.invoke('ventas:crear', data),
+    ipcRenderer.invoke('cajas:crearMovimiento', data) as Promise<CashMovement>,
+
+  // Clientes
   listarClientes: () => ipcRenderer.invoke('clientes:listar') as Promise<Customer[]>,
-  crearCliente: (data: {
-    nombre: string;
-    telefono?: string;
-    limite?: number;
-    saldo?: number;
-    estado?: 'activo' | 'inactivo';
-  }) => ipcRenderer.invoke('clientes:crear', data),
-  actualizarCliente: (data: {
-    id: number;
-    nombre: string;
-    telefono?: string;
-    limite?: number;
-    saldo?: number;
-    estado?: 'activo' | 'inactivo';
-  }) => ipcRenderer.invoke('clientes:actualizar', data),
-  toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) => ipcRenderer.invoke('clientes:toggleEstado', data)
-    ipcRenderer.invoke('ventas:crear', data),
+  crearCliente: (data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) =>
+    ipcRenderer.invoke('clientes:crear', data) as Promise<Customer>,
+  actualizarCliente: (data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) =>
+    ipcRenderer.invoke('clientes:actualizar', data) as Promise<Customer>,
+  toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) =>
+    ipcRenderer.invoke('clientes:toggleEstado', data) as Promise<Customer>,
+
+  // Ventas
+  listarVentas: () => ipcRenderer.invoke('ventas:list') as Promise<unknown>,
+  crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) =>
+    ipcRenderer.invoke('ventas:crear', data) as Promise<unknown>,
+
+  // Inventario (materia prima)
   listarMaterias: () =>
     ipcRenderer.invoke('inventario:listarMaterias') as Promise<{ materias: RawMaterial[]; unidades: Unit[] }>,
   crearUnidad: (data: { nombre: string }) => ipcRenderer.invoke('inventario:crearUnidad', data) as Promise<Unit>,
   crearMateria: (data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }) =>
     ipcRenderer.invoke('inventario:crearMateria', data) as Promise<RawMaterial>,
-  movimientoMateria: (data: {
-    materialId: number;
-    tipo: 'entrada' | 'salida';
-    cantidad: number;
-    costoTotal?: number;
-  }) => ipcRenderer.invoke('inventario:movimientoMateria', data) as Promise<RawMaterial>,
+  movimientoMateria: (data: { materialId: number; tipo: 'entrada' | 'salida'; cantidad: number; costoTotal?: number }) =>
+    ipcRenderer.invoke('inventario:movimientoMateria', data) as Promise<RawMaterial>,
+
+  // Inventario (productos terminados)
   listarProductosStock: () =>
     ipcRenderer.invoke('inventario:listarProductosStock') as Promise<(Product & { stockMoves?: FinishedStockMovement[] })[]>,
-  movimientoProducto: (data: {
-    productId: number;
-    tipo: 'entrada' | 'salida';
-    cantidad: number;
-    referencia?: string;
-  }) => ipcRenderer.invoke('inventario:movimientoProducto', data) as Promise<Product & { stockMoves?: FinishedStockMovement[] }>
-});
+  movimientoProducto: (data: { productId: number; tipo: 'entrada' | 'salida'; cantidad: number; referencia?: string }) =>
+    ipcRenderer.invoke('inventario:movimientoProducto', data) as Promise<Product>
+} as const;
+
+contextBridge.exposeInMainWorld('hedelmia', api);
 
 declare global {
   interface Window {
-    hedelmia: {
-      exportarBackup: (destino: string) => Promise<{ ok: boolean }>;
-      listarCatalogo: () => Promise<{ sabores: Flavor[]; productos: Product[]; tipos: ProductType[] }>;
-      crearSabor: (data: { nombre: string; color?: string; activo?: boolean }) => Promise<Flavor>;
-      crearProducto: (data: {
-        tipoId: number;
-        saborId: number;
-        presentacion: string;
-        precio: number;
-        costo: number;
-        sku?: string;
-        stock?: number;
-      }) => Promise<Product>;
-      listarCajas: () => Promise<CashBox[]>;
-      crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) => Promise<CashMovement>;
-      listarVentas: () => Promise<unknown>;
-      crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) => Promise<unknown>;
-      listarClientes: () => Promise<Customer[]>;
-      crearCliente: (data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => Promise<Customer>;
-      actualizarCliente: (data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => Promise<Customer>;
-      toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) => Promise<Customer>;
-      listarMaterias: () => Promise<{ materias: RawMaterial[]; unidades: Unit[] }>;
-      crearUnidad: (data: { nombre: string }) => Promise<Unit>;
-      crearMateria: (data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }) => Promise<RawMaterial>;
-      movimientoMateria: (data: {
-        materialId: number;
-        tipo: 'entrada' | 'salida';
-        cantidad: number;
-        costoTotal?: number;
-      }) => Promise<RawMaterial>;
-      listarProductosStock: () => Promise<(Product & { stockMoves?: FinishedStockMovement[] })[]>;
-      movimientoProducto: (data: {
-        productId: number;
-        tipo: 'entrada' | 'salida';
-        cantidad: number;
-        referencia?: string;
-      }) => Promise<Product & { stockMoves?: FinishedStockMovement[] }>;
-    };
+    hedelmia: typeof api;
   }
 }

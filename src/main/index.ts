@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import { PrismaClient, Prisma } from '@prisma/client';
 import fs from 'fs';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const isDev = !app.isPackaged;
+
+// --- DB path estable ---
 const dbPath = path.join(app.getPath('userData'), 'hedelmia.db');
 const templateDbPath = isDev
   ? path.join(__dirname, '../../prisma/hedelmia.db')
@@ -11,23 +13,40 @@ const templateDbPath = isDev
 
 if (!fs.existsSync(dbPath)) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  if (fs.existsSync(templateDbPath)) {
-    fs.copyFileSync(templateDbPath, dbPath);
-  }
+  if (fs.existsSync(templateDbPath)) fs.copyFileSync(templateDbPath, dbPath);
 }
 
+// IMPORTANTE: setear DATABASE_URL antes de PrismaClient()
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? `file:${dbPath}`;
 
 const prisma = new PrismaClient();
+
+// --- Helpers ---
+const safeHandle = (
+  channel: string,
+  fn: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<any>
+) => {
+  ipcMain.handle(channel, async (event, ...args: any[]) => {
+    try {
+      return await fn(event, ...args);
+    } catch (err: any) {
+      console.error(`[IPC:${channel}]`, err);
+      throw new Error(err?.message ?? String(err));
+    }
+  });
+};
+
 
 const createWindow = async () => {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    backgroundColor: '#fcf2e4',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js')
-    },
-    backgroundColor: '#fcf2e4'
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
   });
 
   if (isDev) {
@@ -40,16 +59,32 @@ const createWindow = async () => {
 
 app.whenReady().then(createWindow);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
 
-ipcMain.handle('backup:export', async (_event, destino: string) => {
+app.on('window-all-closed', async () => {
+  if (process.platform !== 'darwin') {
+    try {
+      await prisma.$disconnect();
+    } finally {
+      app.quit();
+    }
+  }
+});
+
+// --------------------
+// Backup
+// --------------------
+safeHandle('backup:export', async (_event, destino: string) => {
   fs.copyFileSync(dbPath, destino);
   return { ok: true };
 });
 
-ipcMain.handle('inventario:listarMaterias', async () => {
+// --------------------
+// Inventario (materia prima)
+// --------------------
+safeHandle('inventario:listarMaterias', async () => {
   const [materias, unidades] = await Promise.all([
     prisma.rawMaterial.findMany({
       include: { unidad: true, movimientos: { orderBy: { createdAt: 'desc' }, take: 15 } },
@@ -61,16 +96,17 @@ ipcMain.handle('inventario:listarMaterias', async () => {
   return { materias, unidades };
 });
 
-ipcMain.handle('inventario:crearUnidad', async (_event, data: { nombre: string }) => {
-  return prisma.unit.upsert({ where: { nombre: data.nombre }, update: {}, create: { nombre: data.nombre } });
+safeHandle('inventario:crearUnidad', async (_event, data: { nombre: string }) => {
+  return prisma.unit.upsert({
+    where: { nombre: data.nombre },
+    update: {},
+    create: { nombre: data.nombre }
+  });
 });
 
-ipcMain.handle(
+safeHandle(
   'inventario:crearMateria',
-  async (
-    _event,
-    data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }
-  ) => {
+  async (_event, data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }) => {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const material = await tx.rawMaterial.create({
         data: {
@@ -81,13 +117,13 @@ ipcMain.handle(
         }
       });
 
-      if (data.stock && data.stock > 0) {
+      if ((data.stock ?? 0) > 0) {
         await tx.rawMaterialMovement.create({
           data: {
             materialId: material.id,
             tipo: 'entrada',
-            cantidad: data.stock,
-            costoTotal: (data.costoProm ?? 0) * data.stock
+            cantidad: data.stock!,
+            costoTotal: (data.costoProm ?? 0) * data.stock!
           }
         });
       }
@@ -100,12 +136,9 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle(
+safeHandle(
   'inventario:movimientoMateria',
-  async (
-    _event,
-    data: { materialId: number; tipo: 'entrada' | 'salida'; cantidad: number; costoTotal?: number }
-  ) => {
+  async (_event, data: { materialId: number; tipo: 'entrada' | 'salida'; cantidad: number; costoTotal?: number }) => {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const material = await tx.rawMaterial.findUnique({ where: { id: data.materialId } });
       if (!material) throw new Error('Material no encontrado');
@@ -113,9 +146,8 @@ ipcMain.handle(
       const cantidad = Number(data.cantidad ?? 0);
       if (cantidad <= 0) throw new Error('Cantidad inválida');
 
-      const costoTotal = data.costoTotal ?? 0;
+      const costoTotal = Number(data.costoTotal ?? 0);
       const newStock = data.tipo === 'entrada' ? material.stock + cantidad : material.stock - cantidad;
-
       if (newStock < 0) throw new Error('Stock insuficiente');
 
       let newCostoProm = material.costoProm;
@@ -138,8 +170,11 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle('inventario:listarProductosStock', async () => {
-  const productos = await prisma.product.findMany({
+// --------------------
+// Inventario (productos terminados)
+// --------------------
+safeHandle('inventario:listarProductosStock', async () => {
+  return prisma.product.findMany({
     include: {
       tipo: true,
       sabor: true,
@@ -147,11 +182,9 @@ ipcMain.handle('inventario:listarProductosStock', async () => {
     },
     orderBy: { id: 'asc' }
   });
-
-  return productos;
 });
 
-ipcMain.handle(
+safeHandle(
   'inventario:movimientoProducto',
   async (_event, data: { productId: number; tipo: 'entrada' | 'salida'; cantidad: number; referencia?: string }) => {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -178,7 +211,10 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle('catalogo:listar', async () => {
+// --------------------
+// Catálogo (tipos / sabores / productos) con activo + edición
+// --------------------
+safeHandle('catalogo:listar', async () => {
   const [sabores, productos, tipos] = await Promise.all([
     prisma.flavor.findMany({ orderBy: { nombre: 'asc' } }),
     prisma.product.findMany({ include: { tipo: true, sabor: true }, orderBy: { id: 'asc' } }),
@@ -188,21 +224,64 @@ ipcMain.handle('catalogo:listar', async () => {
   return { sabores, productos, tipos };
 });
 
-ipcMain.handle('catalogo:crearSabor', async (_event, data: { nombre: string; color?: string; activo?: boolean }) => {
-  return prisma.flavor.create({
-    data: {
-      nombre: data.nombre,
-      color: data.color,
-      activo: data.activo ?? true
-    }
+// Tipos
+safeHandle('catalogo:crearTipo', async (_event, data: { nombre: string; activo?: boolean }) => {
+  return prisma.productType.create({
+    data: { nombre: data.nombre, activo: data.activo ?? true }
   });
 });
 
-ipcMain.handle(
+safeHandle('catalogo:actualizarTipo', async (_event, data: { id: number; nombre: string; activo?: boolean }) => {
+  return prisma.productType.update({
+    where: { id: data.id },
+    data: { nombre: data.nombre, ...(typeof data.activo === 'boolean' ? { activo: data.activo } : {}) }
+  });
+});
+
+safeHandle('catalogo:toggleTipo', async (_event, data: { id: number; activo: boolean }) => {
+  return prisma.productType.update({ where: { id: data.id }, data: { activo: data.activo } });
+});
+
+// Sabores
+safeHandle('catalogo:crearSabor', async (_event, data: { nombre: string; color?: string; activo?: boolean }) => {
+  return prisma.flavor.create({
+    data: { nombre: data.nombre, color: data.color, activo: data.activo ?? true }
+  });
+});
+
+safeHandle(
+  'catalogo:actualizarSabor',
+  async (_event, data: { id: number; nombre: string; color?: string | null; activo?: boolean }) => {
+    return prisma.flavor.update({
+      where: { id: data.id },
+      data: {
+        nombre: data.nombre,
+        color: data.color ?? null,
+        ...(typeof data.activo === 'boolean' ? { activo: data.activo } : {})
+      }
+    });
+  }
+);
+
+safeHandle('catalogo:toggleSabor', async (_event, data: { id: number; activo: boolean }) => {
+  return prisma.flavor.update({ where: { id: data.id }, data: { activo: data.activo } });
+});
+
+// Productos
+safeHandle(
   'catalogo:crearProducto',
   async (
     _event,
-    data: { tipoId: number; saborId: number; presentacion: string; precio: number; costo: number; sku?: string; stock?: number }
+    data: {
+      tipoId: number;
+      saborId: number;
+      presentacion: string;
+      precio: number;
+      costo: number;
+      sku?: string;
+      stock?: number;
+      activo?: boolean;
+    }
   ) => {
     return prisma.product.create({
       data: {
@@ -212,20 +291,60 @@ ipcMain.handle(
         precio: data.precio,
         costo: data.costo,
         sku: data.sku,
-        stock: data.stock ?? 0
+        stock: data.stock ?? 0,
+        activo: data.activo ?? true
       }
     });
   }
 );
 
-ipcMain.handle('cajas:listarMovimientos', async () => {
+safeHandle(
+  'catalogo:actualizarProducto',
+  async (
+    _event,
+    data: {
+      id: number;
+      tipoId: number;
+      saborId: number;
+      presentacion: string;
+      precio: number;
+      costo: number;
+      sku?: string | null;
+      stock?: number;
+      activo?: boolean;
+    }
+  ) => {
+    return prisma.product.update({
+      where: { id: data.id },
+      data: {
+        tipoId: data.tipoId,
+        saborId: data.saborId,
+        presentacion: data.presentacion,
+        precio: data.precio,
+        costo: data.costo,
+        sku: data.sku ?? undefined,
+        ...(typeof data.stock === 'number' ? { stock: data.stock } : {}),
+        ...(typeof data.activo === 'boolean' ? { activo: data.activo } : {})
+      }
+    });
+  }
+);
+
+safeHandle('catalogo:toggleProducto', async (_event, data: { id: number; activo: boolean }) => {
+  return prisma.product.update({ where: { id: data.id }, data: { activo: data.activo } });
+});
+
+// --------------------
+// Cajas
+// --------------------
+safeHandle('cajas:listarMovimientos', async () => {
   return prisma.cashBox.findMany({
     include: { movimientos: { orderBy: { fecha: 'desc' } } },
     orderBy: { id: 'asc' }
   });
 });
 
-ipcMain.handle(
+safeHandle(
   'cajas:crearMovimiento',
   async (_event, data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) => {
     return prisma.cashMovement.create({
@@ -240,16 +359,16 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle('clientes:listar', async () => {
+// --------------------
+// Clientes
+// --------------------
+safeHandle('clientes:listar', async () => {
   return prisma.customer.findMany({ orderBy: { id: 'asc' } });
 });
 
-ipcMain.handle(
+safeHandle(
   'clientes:crear',
-  async (
-    _event,
-    data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
-  ) => {
+  async (_event, data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => {
     return prisma.customer.create({
       data: {
         nombre: data.nombre,
@@ -262,12 +381,9 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle(
+safeHandle(
   'clientes:actualizar',
-  async (
-    _event,
-    data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
-  ) => {
+  async (_event, data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }) => {
     return prisma.customer.update({
       where: { id: data.id },
       data: {
@@ -281,21 +397,24 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle('clientes:toggleEstado', async (_event, data: { id: number; estado: 'activo' | 'inactivo' }) => {
+safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: 'activo' | 'inactivo' }) => {
   return prisma.customer.update({ where: { id: data.id }, data: { estado: data.estado } });
 });
 
-ipcMain.handle('ventas:list', async () => {
+// --------------------
+// Ventas
+// --------------------
+safeHandle('ventas:list', async () => {
   return prisma.sale.findMany({ include: { items: true, pagos: true } });
 });
 
-ipcMain.handle(
+safeHandle(
   'ventas:crear',
   async (_event, data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) => {
-    const productos = (await prisma.product.findMany({
+    const productos = await prisma.product.findMany({
       where: { id: { in: data.items.map((i) => i.productId) } },
       select: { id: true, precio: true }
-    })) as { id: number; precio: number }[];
+    });
 
     const total = data.items.reduce((sum, item) => {
       const prod = productos.find((p) => p.id === item.productId);
@@ -307,12 +426,7 @@ ipcMain.handle(
 
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const sale = await tx.sale.create({
-        data: {
-          folio,
-          cajeroId,
-          total,
-          pagoMetodo: data.metodo
-        }
+        data: { folio, cajeroId, total, pagoMetodo: data.metodo }
       });
 
       await tx.saleItem.createMany({
