@@ -402,6 +402,56 @@ safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: '
 });
 
 // --------------------
+// Refris / asignaciones
+// --------------------
+safeHandle('asignaciones:listarPorCliente', async (_event, customerId: number) => {
+  return prisma.fridgeAssignment.findMany({
+    where: { customerId },
+    include: { asset: true },
+    orderBy: [{ entregadoEn: 'desc' }, { id: 'asc' }]
+  });
+});
+
+safeHandle(
+  'asignaciones:crear',
+  async (
+    _event,
+    data: {
+      customerId: number;
+      assetId: number;
+      ubicacion: string;
+      entregadoEn: string;
+      deposito?: number;
+      renta?: number;
+    }
+  ) => {
+    return prisma.fridgeAssignment.create({
+      data: {
+        customerId: data.customerId,
+        assetId: data.assetId,
+        ubicacion: data.ubicacion,
+        entregadoEn: new Date(data.entregadoEn),
+        deposito: data.deposito,
+        renta: data.renta
+      },
+      include: { asset: true }
+    });
+  }
+);
+
+safeHandle('asignaciones:eliminar', async (_event, id: number) => {
+  await prisma.fridgeAssignment.delete({ where: { id } });
+  return { ok: true };
+});
+
+safeHandle('refris:listarDisponibles', async () => {
+  return prisma.fridgeAsset.findMany({
+    where: { asignaciones: { none: {} } },
+    orderBy: [{ modelo: 'asc' }, { serie: 'asc' }]
+  });
+});
+
+// --------------------
 // Ventas
 // --------------------
 safeHandle('ventas:list', async () => {
