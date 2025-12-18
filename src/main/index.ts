@@ -86,6 +86,100 @@ app.on('window-all-closed', async () => {
 });
 
 // --------------------
+// Dashboard (solo lectura)
+// --------------------
+safeHandle('dashboard:resumen', async () => {
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
+  const finHoy = new Date(inicioHoy);
+  finHoy.setDate(finHoy.getDate() + 1);
+
+  const inicioSemana = new Date(inicioHoy);
+  inicioSemana.setDate(inicioSemana.getDate() - 6);
+
+  const [
+    movimientosHoy,
+    ventasHoy,
+    clientesConAdeudo,
+    refrisAsignados,
+    refrisDisponibles,
+    ultimasVentas,
+    clientesSaldo,
+    inventarioBajo,
+    movimientosSemana
+  ] = await Promise.all([
+    prisma.cashMovement.findMany({ where: { fecha: { gte: inicioHoy, lt: finHoy } } }),
+    prisma.sale.findMany({ where: { fecha: { gte: inicioHoy, lt: finHoy } } }),
+    prisma.customer.count({ where: { saldo: { gt: 0 } } }),
+    prisma.fridgeAssignment.count({ where: { fechaFin: null } }),
+    prisma.fridgeAsset.count({ where: { estado: 'activo', asignaciones: { none: { fechaFin: null } } } }),
+    prisma.sale.findMany({ orderBy: { fecha: 'desc' }, take: 5 }),
+    prisma.customer.findMany({ where: { saldo: { gt: 0 } }, orderBy: { saldo: 'desc' }, take: 5 }),
+    prisma.product.findMany({
+      orderBy: { stock: 'asc' },
+      take: 5,
+      include: { sabor: true, tipo: true }
+    }),
+    prisma.cashMovement.findMany({ where: { fecha: { gte: inicioSemana, lt: finHoy } } })
+  ]);
+
+  const cajaDia = movimientosHoy.reduce((sum, mov) => sum + (mov.tipo === 'egreso' ? -mov.monto : mov.monto), 0);
+  const ventasDia = ventasHoy.reduce((sum, venta) => sum + venta.total, 0);
+
+  const diasSemana: { fecha: string; ingresos: number; egresos: number }[] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const dia = new Date(inicioHoy);
+    dia.setDate(inicioHoy.getDate() - i);
+    const clave = dia.toISOString().slice(0, 10);
+    const { ingresos, egresos } = movimientosSemana.reduce(
+      (acc, mov) => {
+        const movKey = mov.fecha.toISOString().slice(0, 10);
+        if (movKey === clave) {
+          if (mov.tipo === 'egreso') acc.egresos += mov.monto;
+          else acc.ingresos += mov.monto;
+        }
+        return acc;
+      },
+      { ingresos: 0, egresos: 0 }
+    );
+
+    diasSemana.push({
+      fecha: dia.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }),
+      ingresos,
+      egresos
+    });
+  }
+
+  return {
+    kpis: {
+      cajaDia,
+      ventasDia,
+      clientesConAdeudo,
+      refrisAsignados,
+      refrisDisponibles
+    },
+    tablas: {
+      ultimasVentas: ultimasVentas.map((venta) => ({
+        id: venta.id,
+        folio: venta.folio,
+        total: venta.total,
+        pagoMetodo: venta.pagoMetodo,
+        fecha: venta.fecha.toISOString()
+      })),
+      clientesSaldo,
+      inventarioBajo
+    },
+    graficas: {
+      ingresosVsEgresos: diasSemana,
+      refrisAsignadosVsLibres: [
+        { label: 'Asignados', valor: refrisAsignados },
+        { label: 'Disponibles', valor: refrisDisponibles }
+      ]
+    }
+  };
+});
+
+// --------------------
 // Backup
 // --------------------
 safeHandle('backup:export', async (_event, destino: string) => {

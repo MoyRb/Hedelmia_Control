@@ -115,10 +115,40 @@ export type RawMaterial = {
   movimientos?: RawMaterialMovement[];
 };
 
+export type DashboardSale = {
+  id: number;
+  folio: string;
+  total: number;
+  pagoMetodo: string;
+  fecha: string;
+};
+
+export type DashboardSummary = {
+  kpis: {
+    cajaDia: number;
+    ventasDia: number;
+    clientesConAdeudo: number;
+    refrisAsignados: number;
+    refrisDisponibles: number;
+  };
+  tablas: {
+    ultimasVentas: DashboardSale[];
+    clientesSaldo: Customer[];
+    inventarioBajo: Product[];
+  };
+  graficas: {
+    ingresosVsEgresos: { fecha: string; ingresos: number; egresos: number }[];
+    refrisAsignadosVsLibres: { label: string; valor: number }[];
+  };
+};
+
 /** ===== API ===== */
 const api = {
   // Backup
   exportarBackup: (destino: string) => ipcRenderer.invoke('backup:export', destino) as Promise<{ ok: boolean }>,
+
+  // Dashboard
+  obtenerDashboard: () => ipcRenderer.invoke('dashboard:resumen') as Promise<DashboardSummary>,
 
   // Catálogo
   listarCatalogo: () =>
