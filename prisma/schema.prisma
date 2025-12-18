@@ -210,7 +210,8 @@ model PromissoryNote {
   fecha      DateTime @default(now())
   estado     String   @default("vigente")
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  customer Customer             @relation(fields: [customerId], references: [id])
+  abonos   PromissoryPayment[]
 }
 
 model FridgeAsset {
@@ -278,4 +279,15 @@ model CustomerMovement {
   customer Customer @relation(fields: [customerId], references: [id])
 
   @@index([customerId], map: "customermovement_customer_idx")
+}
+
+model PromissoryPayment {
+  id               Int      @id @default(autoincrement())
+  promissoryNoteId Int
+  monto            Float
+  fecha            DateTime @default(now())
+
+  promissoryNote PromissoryNote @relation(fields: [promissoryNoteId], references: [id])
+
+  @@index([promissoryNoteId], map: "promissorypayment_note_idx")
 }

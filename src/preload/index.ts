@@ -54,12 +54,20 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
+export type PromissoryPayment = {
+  id: number;
+  promissoryNoteId: number;
+  monto: number;
+  fecha: string;
+};
+
 export type PromissoryNote = {
   id: number;
   customerId: number;
   monto: number;
   fecha: string;
   estado: string;
+  abonos?: PromissoryPayment[];
 };
 
 /** ===== Refris / Asignaciones ===== */
@@ -172,9 +180,11 @@ const api = {
   listarClientesConSaldo: () => ipcRenderer.invoke('creditos:listarConSaldo') as Promise<Customer[]>,
 
   listarPagaresPorCliente: (customerId: number) =>
-    ipcRenderer.invoke('pagares:listarPorCliente', customerId) as Promise<PromissoryNote[]>,
+    ipcRenderer.invoke('pagares:listarPorCliente', customerId) as Promise<(PromissoryNote & { abonos?: PromissoryPayment[] })[]>,
   crearPagare: (data: { customerId: number; monto: number }) =>
     ipcRenderer.invoke('pagares:crear', data) as Promise<PromissoryNote>,
+  registrarAbonoPagare: (data: { promissoryNoteId: number; monto: number; cashBoxId?: number }) =>
+    ipcRenderer.invoke('pagares:registrarAbono', data) as Promise<{ pagare: PromissoryNote & { abonos?: PromissoryPayment[] }; saldoCliente: number }>,
 
   // Asignaciones (cliente <-> refri)
   listarAsignacionesCliente: (customerId: number) =>
