@@ -163,7 +163,7 @@ const api = {
 
   // Asignaciones (cliente <-> refri)
   listarAsignacionesCliente: (customerId: number) =>
-    ipcRenderer.invoke('asignaciones:listarPorCliente', customerId) as Promise<FridgeAssignment[]>,
+    ipcRenderer.invoke('asignaciones:listarPorCliente', customerId) as Promise<(FridgeAssignment & { asset: FridgeAsset })[]>,
   crearAsignacionRefri: (data: {
     customerId: number;
     assetId: number;
