@@ -444,24 +444,64 @@ safeHandle('asignaciones:crear', async (_event, data: {
   deposito?: number;
   renta?: number;
 }) => {
-  const asset = await prisma.fridgeAsset.findUnique({ where: { id: data.assetId } });
-  if (!asset) throw new Error('Refri no encontrado');
-  if (asset.estado !== 'activo') throw new Error('El refri está inactivo');
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const asset = await tx.fridgeAsset.findUnique({ where: { id: data.assetId } });
+    if (!asset) throw new Error('Refri no encontrado');
+    if (asset.estado !== 'activo') throw new Error('El refri está inactivo');
 
-  // bloquear si ya está asignado (como "actualmente asignado")
-  const yaAsignado = await prisma.fridgeAssignment.findFirst({ where: { assetId: data.assetId, fechaFin: null } });
-  if (yaAsignado) throw new Error('Ese refri ya está asignado');
+    // bloquear si ya está asignado (como "actualmente asignado")
+    const yaAsignado = await tx.fridgeAssignment.findFirst({ where: { assetId: data.assetId, fechaFin: null } });
+    if (yaAsignado) throw new Error('Ese refri ya está asignado');
 
-  return prisma.fridgeAssignment.create({
-    data: {
-      customerId: data.customerId,
-      assetId: data.assetId,
-      ubicacion: data.ubicacion,
-      entregadoEn: new Date(data.entregadoEn),
-      deposito: data.deposito ?? null,
-      renta: data.renta ?? null
-    },
-    include: { asset: true, customer: true }
+    const asignacion = await tx.fridgeAssignment.create({
+      data: {
+        customerId: data.customerId,
+        assetId: data.assetId,
+        ubicacion: data.ubicacion,
+        entregadoEn: new Date(data.entregadoEn),
+        deposito: data.deposito ?? null,
+        renta: data.renta ?? null
+      }
+    });
+
+    const cargos: Prisma.CustomerMovementCreateManyInput[] = [];
+    const referencia = `asignacion:${asignacion.id}`;
+
+    const deposito = typeof data.deposito === 'number' ? Number(data.deposito) : undefined;
+    const renta = typeof data.renta === 'number' ? Number(data.renta) : undefined;
+    let totalCargo = 0;
+
+    if (typeof deposito === 'number' && !Number.isNaN(deposito)) {
+      cargos.push({
+        customerId: data.customerId,
+        tipo: 'deposito_refri',
+        concepto: `Depósito refri ${asset.modelo} (${asset.serie})`,
+        monto: deposito,
+        referencia
+      });
+      totalCargo += deposito;
+    }
+
+    if (typeof renta === 'number' && !Number.isNaN(renta)) {
+      cargos.push({
+        customerId: data.customerId,
+        tipo: 'renta_refri',
+        concepto: `Renta refri ${asset.modelo} (${asset.serie})`,
+        monto: renta,
+        referencia
+      });
+      totalCargo += renta;
+    }
+
+    if (totalCargo > 0) {
+      await tx.customer.update({ where: { id: data.customerId }, data: { saldo: { increment: totalCargo } } });
+      await tx.customerMovement.createMany({ data: cargos });
+    }
+
+    return tx.fridgeAssignment.findUnique({
+      where: { id: asignacion.id },
+      include: { asset: true, customer: true }
+    });
   });
 });
 

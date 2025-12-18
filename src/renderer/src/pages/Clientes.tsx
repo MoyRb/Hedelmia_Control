@@ -203,7 +203,7 @@ export default function Clientes() {
     try {
       const deposito = formAsignacion.deposito.trim() ? parseFloat(formAsignacion.deposito) : undefined;
       const renta = formAsignacion.renta.trim() ? parseFloat(formAsignacion.renta) : undefined;
-      await window.hedelmia.crearAsignacionRefri({
+      const nuevaAsignacion = await window.hedelmia.crearAsignacionRefri({
         customerId: editando.id,
         assetId: parseInt(formAsignacion.assetId, 10),
         ubicacion: formAsignacion.ubicacion.trim(),
@@ -211,6 +211,12 @@ export default function Clientes() {
         deposito: isNaN(deposito ?? NaN) ? undefined : deposito,
         renta: isNaN(renta ?? NaN) ? undefined : renta
       });
+      if (nuevaAsignacion.customer) {
+        const nuevoSaldo = nuevaAsignacion.customer.saldo;
+        setClientes((prev) => prev.map((c) => (c.id === nuevaAsignacion.customerId ? { ...c, saldo: nuevoSaldo } : c)));
+        setEditando((prev) => (prev && prev.id === nuevaAsignacion.customerId ? { ...prev, saldo: nuevoSaldo } : prev));
+        setForm((prev) => ({ ...prev, saldo: nuevoSaldo.toString() }));
+      }
       await cargarAsignacionesCliente(editando.id);
       setMostrandoModalAsignacion(false);
     } catch (err) {

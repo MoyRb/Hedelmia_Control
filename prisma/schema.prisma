@@ -179,6 +179,7 @@ model Customer {
   creditos     Credit[]
   pagares      PromissoryNote[]
   asignaciones FridgeAssignment[]
+  movimientos  CustomerMovement[]
 }
 
 model Credit {
@@ -263,4 +264,18 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
+}
+
+model CustomerMovement {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  tipo       String
+  concepto   String
+  monto      Float
+  referencia String?
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId], map: "customermovement_customer_idx")
 }
