@@ -33,6 +33,22 @@ const safeHandle = (channel: string, fn: (event: Electron.IpcMainInvokeEvent, ..
   });
 };
 
+const preferedCashBox = async (tx: Prisma.TransactionClient, cashBoxId?: number) => {
+  if (typeof cashBoxId === 'number') {
+    const caja = await tx.cashBox.findUnique({ where: { id: cashBoxId } });
+    if (!caja) throw new Error('Caja no encontrada');
+    return caja;
+  }
+
+  const cajaChica = await tx.cashBox.findFirst({ where: { tipo: 'chica' } });
+  if (cajaChica) return cajaChica;
+
+  const primera = await tx.cashBox.findFirst({ orderBy: { id: 'asc' } });
+  if (!primera) throw new Error('Configura una caja antes de registrar el abono');
+
+  return primera;
+};
+
 const createWindow = async () => {
   const win = new BrowserWindow({
     width: 1280,
@@ -375,6 +391,7 @@ safeHandle('creditos:listarConSaldo', async () => {
 safeHandle('pagares:listarPorCliente', async (_event, customerId: number) => {
   return prisma.promissoryNote.findMany({
     where: { customerId },
+    include: { abonos: { orderBy: { fecha: 'desc' } } },
     orderBy: { fecha: 'desc' }
   });
 });
@@ -395,6 +412,55 @@ safeHandle('pagares:crear', async (_event, data: { customerId: number; monto: nu
         estado: 'vigente'
       }
     });
+  });
+});
+
+safeHandle('pagares:registrarAbono', async (_event, data: { promissoryNoteId: number; monto: number; cashBoxId?: number }) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const pagare = await tx.promissoryNote.findUnique({
+      where: { id: data.promissoryNoteId },
+      include: { customer: true }
+    });
+    if (!pagare) throw new Error('Pagaré no encontrado');
+    if (pagare.estado === 'liquidado') throw new Error('El pagaré ya está liquidado');
+
+    const monto = Number(data.monto ?? 0);
+    if (!Number.isFinite(monto) || monto <= 0) throw new Error('Monto inválido');
+    if (monto > pagare.monto) throw new Error('El abono no puede superar el saldo del pagaré');
+
+    const cliente = pagare.customer;
+    if (cliente.saldo < monto) throw new Error('El abono supera el saldo del cliente');
+
+    const caja = await preferedCashBox(tx, data.cashBoxId);
+    const nuevoMontoPagare = Math.max(pagare.monto - monto, 0);
+    const nuevoEstado = nuevoMontoPagare <= 0 ? 'liquidado' : pagare.estado;
+
+    await tx.promissoryPayment.create({
+      data: { promissoryNoteId: pagare.id, monto, fecha: new Date() }
+    });
+
+    const pagareActualizado = await tx.promissoryNote.update({
+      where: { id: pagare.id },
+      data: { monto: nuevoMontoPagare, estado: nuevoEstado },
+      include: { abonos: { orderBy: { fecha: 'desc' } } }
+    });
+
+    const clienteActualizado = await tx.customer.update({
+      where: { id: cliente.id },
+      data: { saldo: { decrement: monto } }
+    });
+
+    await tx.cashMovement.create({
+      data: {
+        cashBoxId: caja.id,
+        tipo: 'ingreso',
+        concepto: `Abono pagaré #${pagare.id} - ${cliente.nombre}`,
+        monto,
+        fecha: new Date()
+      }
+    });
+
+    return { pagare: pagareActualizado, saldoCliente: clienteActualizado.saldo };
   });
 });
 
