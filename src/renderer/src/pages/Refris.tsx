@@ -98,12 +98,20 @@ export default function Refris() {
     }
   };
 
-  const obtenerUltimaAsignacion = (refri: FridgeAsset): FridgeAssignment | undefined => {
+  const obtenerAsignacionActiva = (refri: FridgeAsset): FridgeAssignment | undefined =>
+    (refri.asignaciones ?? []).find((a) => !a.fechaFin);
+
+  const obtenerHistorialAsignaciones = (refri: FridgeAsset): FridgeAssignment[] =>
+    (refri.asignaciones ?? []).filter((a) => !!a.fechaFin);
+
+  const obtenerReferenciaOrden = (refri: FridgeAsset): FridgeAssignment | undefined => {
+    const activa = obtenerAsignacionActiva(refri);
+    if (activa) return activa;
     if (!refri.asignaciones || refri.asignaciones.length === 0) return undefined;
     return refri.asignaciones[0];
   };
 
-  const formatearFecha = (fecha?: string) => {
+  const formatearFecha = (fecha?: string | null) => {
     if (!fecha) return '';
     const date = new Date(fecha);
     if (Number.isNaN(date.getTime())) return '';
@@ -113,8 +121,8 @@ export default function Refris() {
   const refrisOrdenados = useMemo(
     () =>
       [...refris].sort((a, b) => {
-        const asignacionA = obtenerUltimaAsignacion(a);
-        const asignacionB = obtenerUltimaAsignacion(b);
+        const asignacionA = obtenerReferenciaOrden(a);
+        const asignacionB = obtenerReferenciaOrden(b);
 
         if (asignacionA && asignacionB) return asignacionA.entregadoEn < asignacionB.entregadoEn ? 1 : -1;
         if (asignacionA) return -1;
@@ -155,22 +163,51 @@ export default function Refris() {
             </thead>
             <tbody>
               {refrisOrdenados.map((r) => {
-                const asignacion = obtenerUltimaAsignacion(r);
+                const asignacionActiva = obtenerAsignacionActiva(r);
+                const historial = obtenerHistorialAsignaciones(r);
+                const asignacionReferencia = asignacionActiva ?? historial[0];
                 return (
                   <tr key={r.id} className="border-b border-secondary/50">
                     <td className="py-1">{r.id}</td>
                     <td>{r.modelo}</td>
                     <td>{r.serie}</td>
                     <td>
-                      {asignacion ? (
-                        <div className="flex flex-col">
-                          <span className="font-medium">{asignacion.customer?.nombre ?? 'Cliente desconocido'}</span>
-                          <span className="text-xs text-gray-600">{asignacion.ubicacion || 'Sin ubicación'}</span>
-                          <span className="text-xs text-gray-500">Asignado {formatearFecha(asignacion.entregadoEn)}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">Sin asignar</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {asignacionReferencia ? (
+                          <>
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {asignacionReferencia.customer?.nombre ?? 'Cliente desconocido'}
+                              </span>
+                              <span className="text-xs text-gray-600">
+                                {asignacionReferencia.ubicacion || 'Sin ubicación'}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Asignado {formatearFecha(asignacionReferencia.entregadoEn)}
+                                {asignacionReferencia.fechaFin ? ` — Fin ${formatearFecha(asignacionReferencia.fechaFin)}` : ''}
+                              </span>
+                            </div>
+                            {historial.length > 0 && (
+                              <div className="text-xs text-gray-700 border-t border-secondary/50 pt-1 space-y-1">
+                                <p className="font-semibold text-gray-700">Historial</p>
+                                <ul className="space-y-1">
+                                  {historial.map((a) => (
+                                    <li key={a.id} className="flex flex-col">
+                                      <span className="font-medium">{a.customer?.nombre ?? 'Cliente desconocido'}</span>
+                                      <span className="text-gray-600">{a.ubicacion || 'Sin ubicación'}</span>
+                                      <span className="text-[11px] text-gray-500">
+                                        {formatearFecha(a.entregadoEn)} → {formatearFecha(a.fechaFin)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-500">Sin asignar</span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <span

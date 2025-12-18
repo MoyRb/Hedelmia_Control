@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Customer, FridgeAsset, FridgeAssignment } from '../../../preload';
 
 type ClienteAsignacion = FridgeAssignment & { asset: FridgeAsset };
@@ -227,7 +227,11 @@ export default function Clientes() {
     setError('');
     try {
       await window.hedelmia.eliminarAsignacionRefri(id);
-      setAsignaciones((prev) => prev.filter((a) => a.id !== id));
+      if (editando) {
+        await cargarAsignacionesCliente(editando.id);
+      } else {
+        setAsignaciones((prev) => prev.filter((a) => a.id !== id));
+      }
     } catch (err) {
       console.error(err);
       setError('No se pudo quitar la asignación.');
@@ -236,7 +240,8 @@ export default function Clientes() {
     }
   };
 
-  const formatearFecha = (fecha: string) => {
+  const formatearFecha = (fecha?: string | null) => {
+    if (!fecha) return '—';
     const date = new Date(fecha);
     return isNaN(date.getTime()) ? fecha : date.toLocaleDateString('es-MX');
   };
@@ -257,6 +262,9 @@ export default function Clientes() {
       setError('No se pudo actualizar el estado del cliente.');
     }
   };
+
+  const asignacionesActivas = useMemo(() => asignaciones.filter((a) => !a.fechaFin), [asignaciones]);
+  const historialAsignaciones = useMemo(() => asignaciones.filter((a) => a.fechaFin), [asignaciones]);
 
   return (
     <div className="space-y-4">
@@ -375,7 +383,7 @@ export default function Clientes() {
                 </div>
                 {cargandoAsignaciones ? (
                   <p className="text-xs text-gray-500">Cargando asignaciones...</p>
-                ) : asignaciones.length === 0 ? (
+                ) : asignacionesActivas.length === 0 ? (
                   <p className="text-xs text-gray-600">Este cliente no tiene refris asignados.</p>
                 ) : (
                   <table className="w-full text-xs">
@@ -391,7 +399,7 @@ export default function Clientes() {
                       </tr>
                     </thead>
                     <tbody>
-                      {asignaciones.map((a) => (
+                      {asignacionesActivas.map((a) => (
                         <tr key={a.id} className="border-b border-secondary/50">
                           <td className="py-1">{a.asset.modelo}</td>
                           <td>{a.asset.serie}</td>
@@ -413,6 +421,37 @@ export default function Clientes() {
                     </tbody>
                   </table>
                 )}
+                <div className="border-t border-secondary/50 pt-3 space-y-2">
+                  <h5 className="font-semibold text-sm">Historial de refris</h5>
+                  {cargandoAsignaciones ? (
+                    <p className="text-xs text-gray-500">Cargando historial...</p>
+                  ) : historialAsignaciones.length === 0 ? (
+                    <p className="text-xs text-gray-600">No hay historial de refris para este cliente.</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-600">
+                          <th>Modelo</th>
+                          <th>Serie</th>
+                          <th>Ubicación</th>
+                          <th>Inicio</th>
+                          <th>Fin</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historialAsignaciones.map((a) => (
+                          <tr key={a.id} className="border-b border-secondary/50">
+                            <td className="py-1">{a.asset.modelo}</td>
+                            <td>{a.asset.serie}</td>
+                            <td>{a.ubicacion}</td>
+                            <td>{formatearFecha(a.entregadoEn)}</td>
+                            <td>{formatearFecha(a.fechaFin)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="text-xs text-gray-600 border-t border-secondary/50 pt-3">
