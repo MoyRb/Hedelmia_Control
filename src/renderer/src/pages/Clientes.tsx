@@ -1,31 +1,5 @@
 import { useEffect, useState } from 'react';
-
-type Customer = {
-  id: number;
-  nombre: string;
-  telefono?: string | null;
-  limite: number;
-  saldo: number;
-  estado: 'activo' | 'inactivo';
-};
-
-type FridgeAsset = {
-  id: number;
-  modelo: string;
-  serie: string;
-  estado: string;
-};
-
-type FridgeAssignment = {
-  id: number;
-  assetId: number;
-  customerId: number;
-  ubicacion: string;
-  entregadoEn: string;
-  deposito?: number | null;
-  renta?: number | null;
-  asset: FridgeAsset;
-};
+import type { Customer, FridgeAsset, FridgeAssignment } from '../../../preload';
 
 type ClienteForm = {
   nombre: string;

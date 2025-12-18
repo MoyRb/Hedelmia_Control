@@ -1,33 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { FridgeAsset, FridgeAssignment } from '../../../preload';
 
-type Refri = {
-  id: number;
-  modelo: string;
-  serie: string;
-  estado: 'activo' | 'inactivo' | string;
-  asignaciones?: RefriAsignacion[];
-};
-
-type RefriAsignacion = {
-  id: number;
-  entregadoEn: string;
-  ubicacion: string;
-  customer?: { id: number; nombre: string };
-};
-
-type RefriForm = {
-  modelo: string;
-  serie: string;
-  estado: 'activo' | 'inactivo';
-};
+type RefriForm = Pick<FridgeAsset, 'modelo' | 'serie'> & { estado: 'activo' | 'inactivo' };
 
 const emptyForm: RefriForm = { modelo: '', serie: '', estado: 'activo' };
 
 export default function Refris() {
-  const [refris, setRefris] = useState<Refri[]>([]);
+  const [refris, setRefris] = useState<FridgeAsset[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrandoModal, setMostrandoModal] = useState(false);
-  const [editando, setEditando] = useState<Refri | null>(null);
+  const [editando, setEditando] = useState<FridgeAsset | null>(null);
   const [form, setForm] = useState<RefriForm>(emptyForm);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -59,7 +41,7 @@ export default function Refris() {
     setError('');
   };
 
-  const abrirEditar = (refri: Refri) => {
+  const abrirEditar = (refri: FridgeAsset) => {
     setEditando(refri);
     setForm({ modelo: refri.modelo, serie: refri.serie, estado: refri.estado as 'activo' | 'inactivo' });
     setMostrandoModal(true);
@@ -104,7 +86,7 @@ export default function Refris() {
     }
   };
 
-  const toggleEstado = async (refri: Refri) => {
+  const toggleEstado = async (refri: FridgeAsset) => {
     setError('');
     setMensaje('');
     try {
@@ -116,13 +98,31 @@ export default function Refris() {
     }
   };
 
-  const obtenerAsignacionLabel = (refri: Refri) => {
-    const asignacion = refri.asignaciones?.[0];
-    if (!asignacion) return 'Sin asignar';
-
-    const cliente = asignacion.customer?.nombre ?? 'Cliente desconocido';
-    return asignacion.ubicacion ? `${cliente} — ${asignacion.ubicacion}` : cliente;
+  const obtenerUltimaAsignacion = (refri: FridgeAsset): FridgeAssignment | undefined => {
+    if (!refri.asignaciones || refri.asignaciones.length === 0) return undefined;
+    return refri.asignaciones[0];
   };
+
+  const formatearFecha = (fecha?: string) => {
+    if (!fecha) return '';
+    const date = new Date(fecha);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const refrisOrdenados = useMemo(
+    () =>
+      [...refris].sort((a, b) => {
+        const asignacionA = obtenerUltimaAsignacion(a);
+        const asignacionB = obtenerUltimaAsignacion(b);
+
+        if (asignacionA && asignacionB) return asignacionA.entregadoEn < asignacionB.entregadoEn ? 1 : -1;
+        if (asignacionA) return -1;
+        if (asignacionB) return 1;
+        return a.id - b.id;
+      }),
+    [refris]
+  );
 
   return (
     <div className="space-y-4">
@@ -139,7 +139,7 @@ export default function Refris() {
       <div className="card p-4">
         {cargando ? (
           <p className="text-sm text-gray-500">Cargando refris...</p>
-        ) : refris.length === 0 ? (
+        ) : refrisOrdenados.length === 0 ? (
           <p className="text-sm text-gray-600">No hay refris registrados.</p>
         ) : (
           <table className="w-full text-sm">
@@ -148,29 +148,50 @@ export default function Refris() {
                 <th>ID</th>
                 <th>Modelo</th>
                 <th>Serie</th>
-                <th>Asignado a</th>
+                <th>Asignación</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {refris.map((r) => (
-                <tr key={r.id} className="border-b border-secondary/50">
-                  <td className="py-1">{r.id}</td>
-                  <td>{r.modelo}</td>
-                  <td>{r.serie}</td>
-                  <td>{obtenerAsignacionLabel(r)}</td>
-                  <td className="capitalize">{r.estado}</td>
-                  <td className="space-x-2 text-right">
-                    <button className="text-primary text-sm" onClick={() => abrirEditar(r)}>
-                      Editar
-                    </button>
-                    <button className="text-sm text-gray-700" onClick={() => toggleEstado(r)}>
-                      {r.estado === 'activo' ? 'Desactivar' : 'Activar'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {refrisOrdenados.map((r) => {
+                const asignacion = obtenerUltimaAsignacion(r);
+                return (
+                  <tr key={r.id} className="border-b border-secondary/50">
+                    <td className="py-1">{r.id}</td>
+                    <td>{r.modelo}</td>
+                    <td>{r.serie}</td>
+                    <td>
+                      {asignacion ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium">{asignacion.customer?.nombre ?? 'Cliente desconocido'}</span>
+                          <span className="text-xs text-gray-600">{asignacion.ubicacion || 'Sin ubicación'}</span>
+                          <span className="text-xs text-gray-500">Asignado {formatearFecha(asignacion.entregadoEn)}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">Sin asignar</span>
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium capitalize ${
+                          r.estado === 'activo' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {r.estado}
+                      </span>
+                    </td>
+                    <td className="space-x-2 text-right">
+                      <button className="text-primary text-sm" onClick={() => abrirEditar(r)}>
+                        Editar
+                      </button>
+                      <button className="text-sm text-gray-700" onClick={() => toggleEstado(r)}>
+                        {r.estado === 'activo' ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
