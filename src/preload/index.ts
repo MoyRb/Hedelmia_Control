@@ -54,6 +54,14 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
+export type PromissoryNote = {
+  id: number;
+  customerId: number;
+  monto: number;
+  fecha: string;
+  estado: string;
+};
+
 /** ===== Refris / Asignaciones ===== */
 export type FridgeAsset = {
   id: number;
@@ -161,6 +169,12 @@ const api = {
     ipcRenderer.invoke('clientes:actualizar', data) as Promise<Customer>,
   toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) =>
     ipcRenderer.invoke('clientes:toggleEstado', data) as Promise<Customer>,
+  listarClientesConSaldo: () => ipcRenderer.invoke('creditos:listarConSaldo') as Promise<Customer[]>,
+
+  listarPagaresPorCliente: (customerId: number) =>
+    ipcRenderer.invoke('pagares:listarPorCliente', customerId) as Promise<PromissoryNote[]>,
+  crearPagare: (data: { customerId: number; monto: number }) =>
+    ipcRenderer.invoke('pagares:crear', data) as Promise<PromissoryNote>,
 
   // Asignaciones (cliente <-> refri)
   listarAsignacionesCliente: (customerId: number) =>

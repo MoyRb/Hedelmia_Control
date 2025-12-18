@@ -364,6 +364,40 @@ safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: '
   return prisma.customer.update({ where: { id: data.id }, data: { estado: data.estado } });
 });
 
+// Créditos / Pagarés
+safeHandle('creditos:listarConSaldo', async () => {
+  return prisma.customer.findMany({
+    where: { saldo: { gt: 0 } },
+    orderBy: { id: 'asc' }
+  });
+});
+
+safeHandle('pagares:listarPorCliente', async (_event, customerId: number) => {
+  return prisma.promissoryNote.findMany({
+    where: { customerId },
+    orderBy: { fecha: 'desc' }
+  });
+});
+
+safeHandle('pagares:crear', async (_event, data: { customerId: number; monto: number }) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const cliente = await tx.customer.findUnique({ where: { id: data.customerId } });
+    if (!cliente) throw new Error('Cliente no encontrado');
+
+    const monto = Number(data.monto ?? 0);
+    if (!Number.isFinite(monto) || monto <= 0) throw new Error('Monto inválido');
+    if (monto > cliente.saldo) throw new Error('El monto no puede ser mayor al saldo del cliente');
+
+    return tx.promissoryNote.create({
+      data: {
+        customerId: cliente.id,
+        monto,
+        estado: 'vigente'
+      }
+    });
+  });
+});
+
 // --------------------
 // Refris
 // --------------------
