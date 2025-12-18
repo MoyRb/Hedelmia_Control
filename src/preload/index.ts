@@ -54,41 +54,27 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
-export type FridgeAsset = {
-  id: number;
-  modelo: string;
-  serie: string;
-  estado: string;
-};
-
-export type FridgeAssignment = {
-  id: number;
-  assetId: number;
-  customerId: number;
-  ubicacion: string;
-  entregadoEn: string;
-  deposito?: number | null;
-  renta?: number | null;
-  asset: FridgeAsset;
-};
-
-export type FridgeAssignment = {
-  id: number;
-  assetId: number;
-  customerId: number;
-  ubicacion: string;
-  entregadoEn: string;
-  deposito?: number | null;
-  renta?: number | null;
-  customer: Customer;
-};
-
+/** ===== Refris / Asignaciones ===== */
 export type FridgeAsset = {
   id: number;
   modelo: string;
   serie: string;
   estado: 'activo' | 'inactivo' | string;
   asignaciones?: FridgeAssignment[];
+};
+
+export type FridgeAssignment = {
+  id: number;
+  assetId: number;
+  customerId: number;
+  ubicacion: string;
+  entregadoEn: string;
+  deposito?: number | null;
+  renta?: number | null;
+
+  // según el include del main
+  asset?: FridgeAsset;
+  customer?: Customer;
 };
 
 export type Unit = { id: number; nombre: string };
@@ -175,6 +161,7 @@ const api = {
   toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) =>
     ipcRenderer.invoke('clientes:toggleEstado', data) as Promise<Customer>,
 
+  // Asignaciones (cliente <-> refri)
   listarAsignacionesCliente: (customerId: number) =>
     ipcRenderer.invoke('asignaciones:listarPorCliente', customerId) as Promise<FridgeAssignment[]>,
   crearAsignacionRefri: (data: {
