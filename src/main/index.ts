@@ -372,8 +372,7 @@ safeHandle('refris:listar', async () => {
     include: {
       asignaciones: {
         include: { customer: true },
-        orderBy: { entregadoEn: 'desc' },
-        take: 1
+        orderBy: [{ fechaFin: 'asc' }, { entregadoEn: 'desc' }]
       }
     },
     orderBy: { id: 'asc' }
@@ -399,6 +398,12 @@ safeHandle('refris:actualizar', async (_event, data: { id: number; modelo?: stri
       ...(campos.modelo !== undefined ? { modelo: campos.modelo } : {}),
       ...(campos.serie !== undefined ? { serie: campos.serie } : {}),
       ...(campos.estado !== undefined ? { estado: campos.estado } : {})
+    },
+    include: {
+      asignaciones: {
+        include: { customer: true },
+        orderBy: [{ fechaFin: 'asc' }, { entregadoEn: 'desc' }]
+      }
     }
   });
 });
@@ -414,8 +419,7 @@ safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
     include: {
       asignaciones: {
         include: { customer: true },
-        orderBy: { entregadoEn: 'desc' },
-        take: 1
+        orderBy: [{ fechaFin: 'asc' }, { entregadoEn: 'desc' }]
       }
     }
   });
@@ -428,7 +432,7 @@ safeHandle('asignaciones:listarPorCliente', async (_event, customerId: number) =
   return prisma.fridgeAssignment.findMany({
     where: { customerId },
     include: { asset: true },
-    orderBy: { entregadoEn: 'desc' }
+    orderBy: [{ fechaFin: 'asc' }, { entregadoEn: 'desc' }]
   });
 });
 
@@ -445,7 +449,7 @@ safeHandle('asignaciones:crear', async (_event, data: {
   if (asset.estado !== 'activo') throw new Error('El refri está inactivo');
 
   // bloquear si ya está asignado (como "actualmente asignado")
-  const yaAsignado = await prisma.fridgeAssignment.findFirst({ where: { assetId: data.assetId } });
+  const yaAsignado = await prisma.fridgeAssignment.findFirst({ where: { assetId: data.assetId, fechaFin: null } });
   if (yaAsignado) throw new Error('Ese refri ya está asignado');
 
   return prisma.fridgeAssignment.create({
@@ -462,7 +466,11 @@ safeHandle('asignaciones:crear', async (_event, data: {
 });
 
 safeHandle('asignaciones:eliminar', async (_event, id: number) => {
-  await prisma.fridgeAssignment.delete({ where: { id } });
+  const asignacion = await prisma.fridgeAssignment.findUnique({ where: { id } });
+  if (!asignacion) throw new Error('Asignación no encontrada');
+  if (!asignacion.fechaFin) {
+    await prisma.fridgeAssignment.update({ where: { id }, data: { fechaFin: new Date() } });
+  }
   return { ok: true };
 });
 
@@ -470,7 +478,7 @@ safeHandle('refris:listarDisponibles', async () => {
   return prisma.fridgeAsset.findMany({
     where: {
       estado: 'activo',
-      asignaciones: { none: {} }
+      asignaciones: { none: { fechaFin: null } }
     },
     orderBy: { id: 'asc' }
   });
