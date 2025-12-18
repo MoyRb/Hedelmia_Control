@@ -227,6 +227,7 @@ model FridgeAssignment {
   customerId  Int
   ubicacion   String
   entregadoEn DateTime
+  fechaFin    DateTime?
   deposito    Float?
   renta       Float?
 

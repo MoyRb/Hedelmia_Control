@@ -69,6 +69,7 @@ export type FridgeAssignment = {
   customerId: number;
   ubicacion: string;
   entregadoEn: string;
+  fechaFin?: string | null;
   deposito?: number | null;
   renta?: number | null;
 
