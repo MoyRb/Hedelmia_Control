@@ -1,7 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { PrismaClient, Prisma } from '@prisma/client';
+
+import { getPrismaClient } from './prismaClient';
+import type { Prisma } from '@prisma/client';
 
 const isDev = !app.isPackaged;
 
@@ -19,7 +21,7 @@ if (!fs.existsSync(dbPath)) {
 // IMPORTANTE: setear DATABASE_URL antes de PrismaClient()
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? `file:${dbPath}`;
 
-const prisma = new PrismaClient();
+const prisma = getPrismaClient();
 
 // --- Helpers ---
 const safeHandle = (channel: string, fn: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<any>) => {
