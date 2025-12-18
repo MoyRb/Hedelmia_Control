@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Customer, FridgeAsset, FridgeAssignment } from '../../../preload';
 
+type ClienteAsignacion = FridgeAssignment & { asset: FridgeAsset };
+
 type ClienteForm = {
   nombre: string;
   telefono: string;
@@ -26,7 +28,7 @@ export default function Clientes() {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
-  const [asignaciones, setAsignaciones] = useState<FridgeAssignment[]>([]);
+  const [asignaciones, setAsignaciones] = useState<ClienteAsignacion[]>([]);
   const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
   const [mostrandoModalAsignacion, setMostrandoModalAsignacion] = useState(false);
   const [refrisDisponibles, setRefrisDisponibles] = useState<FridgeAsset[]>([]);
@@ -239,6 +241,11 @@ export default function Clientes() {
     return isNaN(date.getTime()) ? fecha : date.toLocaleDateString('es-MX');
   };
 
+  const formatearDinero = (valor?: number | null) => {
+    if (valor === null || valor === undefined || Number.isNaN(valor)) return '—';
+    return `$${valor.toFixed(2)}`;
+  };
+
   const toggleEstado = async (cliente: Customer) => {
     const nuevoEstado = cliente.estado === 'activo' ? 'inactivo' : 'activo';
     setError('');
@@ -390,8 +397,8 @@ export default function Clientes() {
                           <td>{a.asset.serie}</td>
                           <td>{a.ubicacion}</td>
                           <td>{formatearFecha(a.entregadoEn)}</td>
-                          <td>{a.deposito !== null && a.deposito !== undefined ? `$${a.deposito.toFixed(2)}` : '—'}</td>
-                          <td>{a.renta !== null && a.renta !== undefined ? `$${a.renta.toFixed(2)}` : '—'}</td>
+                          <td>{formatearDinero(a.deposito)}</td>
+                          <td>{formatearDinero(a.renta)}</td>
                           <td className="text-right">
                             <button
                               className="text-red-600"
