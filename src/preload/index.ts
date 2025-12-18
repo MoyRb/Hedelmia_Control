@@ -212,6 +212,8 @@ const api = {
   listarVentas: () => ipcRenderer.invoke('ventas:list') as Promise<unknown>,
   crearVenta: (data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }) =>
     ipcRenderer.invoke('ventas:crear', data) as Promise<unknown>,
+  ventaPOS: (data: { items: { productId: number; cantidad: number }[]; customerId?: number | null; cashBoxId?: number | null }) =>
+    ipcRenderer.invoke('pos:venta', data) as Promise<{ saleId: number; folio: string; total: number; customerId: number | null }>,
 
   // Inventario (materia prima)
   listarMaterias: () =>

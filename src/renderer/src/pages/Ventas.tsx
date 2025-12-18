@@ -1,22 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ShoppingCart, Minus, Plus, CheckCircle2 } from 'lucide-react';
-
-type Flavor = { id: number; nombre: string };
-type Product = {
-  id: number;
-  tipo: { nombre: string };
-  sabor: Flavor;
-  presentacion: string;
-  precio: number;
-};
+import { ShoppingCart, Minus, Plus, CheckCircle2, AlertTriangle } from 'lucide-react';
+import type { Customer, Flavor, Product } from '../../../preload';
 
 export default function Ventas() {
   const [productos, setProductos] = useState<Product[]>([]);
   const [sabores, setSabores] = useState<Flavor[]>([]);
   const [carrito, setCarrito] = useState<{ id: number; qty: number }[]>([]);
   const [mensaje, setMensaje] = useState('');
+  const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [cargandoClientes, setCargandoClientes] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [clientes, setClientes] = useState<Customer[]>([]);
+  const [clienteId, setClienteId] = useState('');
 
   const cargarCatalogo = async () => {
     setCargando(true);
@@ -26,22 +22,53 @@ export default function Ventas() {
     setCargando(false);
   };
 
+  const cargarClientes = async () => {
+    setCargandoClientes(true);
+    try {
+      const data = await window.hedelmia.listarClientes();
+      setClientes(data);
+    } finally {
+      setCargandoClientes(false);
+    }
+  };
+
   useEffect(() => {
     cargarCatalogo();
+    cargarClientes();
   }, []);
 
   const agregar = (id: number) => {
+    const prod = productos.find((p) => p.id === id);
+    if (!prod) return;
+    setMensaje('');
+    setError('');
     setCarrito((prev) => {
       const existe = prev.find((p) => p.id === id);
-      if (existe) return prev.map((p) => (p.id === id ? { ...p, qty: p.qty + 1 } : p));
+      const nuevaCantidad = (existe?.qty ?? 0) + 1;
+      if (nuevaCantidad > prod.stock) {
+        setError(`Stock insuficiente para ${prod.sabor.nombre}`);
+        return prev;
+      }
+      if (existe) return prev.map((p) => (p.id === id ? { ...p, qty: nuevaCantidad } : p));
       return [...prev, { id, qty: 1 }];
     });
   };
 
   const cambiar = (id: number, delta: number) => {
+    const prod = productos.find((p) => p.id === id);
+    if (!prod) return;
+    setError('');
     setCarrito((prev) =>
       prev
-        .map((p) => (p.id === id ? { ...p, qty: Math.max(0, p.qty + delta) } : p))
+        .map((p) => {
+          if (p.id !== id) return p;
+          const nuevaCantidad = Math.max(0, p.qty + delta);
+          if (nuevaCantidad > prod.stock) {
+            setError(`Stock insuficiente para ${prod.sabor.nombre}`);
+            return p;
+          }
+          return { ...p, qty: nuevaCantidad };
+        })
         .filter((p) => p.qty > 0)
     );
   };
@@ -53,17 +80,30 @@ export default function Ventas() {
 
   const cobrar = async () => {
     if (!carrito.length || guardando) return;
+    setError('');
     setGuardando(true);
     setMensaje('');
     try {
-      await window.hedelmia.crearVenta({
+      const faltante = carrito.find((item) => {
+        const prod = productos.find((p) => p.id === item.id);
+        return !prod || item.qty > prod.stock;
+      });
+      if (faltante) {
+        setError('No puedes vender más de lo disponible en stock.');
+        return;
+      }
+
+      await window.hedelmia.ventaPOS({
         items: carrito.map((item) => ({ productId: item.id, cantidad: item.qty })),
-        metodo: 'efectivo'
+        customerId: clienteId ? Number(clienteId) : undefined
       });
       setCarrito([]);
-      setMensaje('Venta guardada correctamente.');
+      setMensaje('Venta registrada correctamente.');
+      setClienteId('');
+      cargarCatalogo();
     } catch (error) {
-      setMensaje('No se pudo guardar la venta');
+      console.error(error);
+      setError('No se pudo guardar la venta');
     } finally {
       setGuardando(false);
     }
@@ -84,11 +124,15 @@ export default function Ventas() {
               <button
                 key={p.id}
                 onClick={() => agregar(p.id)}
-                className="rounded-xl border border-primary/60 bg-white/80 hover:-translate-y-0.5 transition shadow-sm p-3 text-left"
+                disabled={p.stock <= 0}
+                className={`rounded-xl border border-primary/60 bg-white/80 hover:-translate-y-0.5 transition shadow-sm p-3 text-left ${
+                  p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <p className="font-semibold">{p.sabor.nombre}</p>
                 <p className="text-xs text-gray-600 capitalize">{p.tipo.nombre}</p>
                 <p className="text-sm">${p.precio.toFixed(2)}</p>
+                <p className="text-xs text-gray-500">Stock: {p.stock}</p>
               </button>
             ))}
           </div>
@@ -98,6 +142,22 @@ export default function Ventas() {
         <div className="flex items-center gap-2 mb-3">
           <ShoppingCart size={18} />
           <h3 className="font-semibold">Carrito</h3>
+        </div>
+        <div className="space-y-2 mb-3">
+          <label className="text-sm text-gray-700">Cliente (opcional)</label>
+          <select
+            className="input"
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            disabled={cargandoClientes}
+          >
+            <option value="">Venta de contado</option>
+            {clientes.map((cliente) => (
+              <option key={cliente.id} value={cliente.id}>
+                {cliente.nombre} {cliente.saldo > 0 ? `(Saldo: $${cliente.saldo.toFixed(2)})` : ''}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="space-y-2 flex-1 overflow-auto">
           {carrito.length === 0 && <p className="text-sm text-gray-500">Agrega productos al carrito.</p>}
@@ -129,6 +189,10 @@ export default function Ventas() {
           <div className="flex items-center gap-2 text-sm text-green-700" hidden={!mensaje}>
             <CheckCircle2 size={16} />
             <span>{mensaje}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-red-700" hidden={!error}>
+            <AlertTriangle size={16} />
+            <span>{error}</span>
           </div>
           <p className="text-sm text-gray-600">Total</p>
           <p className="text-2xl font-semibold">${total.toFixed(2)}</p>
