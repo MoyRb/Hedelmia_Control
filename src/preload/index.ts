@@ -54,6 +54,24 @@ export type Customer = {
   estado: 'activo' | 'inactivo' | string;
 };
 
+export type FridgeAsset = {
+  id: number;
+  modelo: string;
+  serie: string;
+  estado: string;
+};
+
+export type FridgeAssignment = {
+  id: number;
+  assetId: number;
+  customerId: number;
+  ubicacion: string;
+  entregadoEn: string;
+  deposito?: number | null;
+  renta?: number | null;
+  asset: FridgeAsset;
+};
+
 export type FridgeAssignment = {
   id: number;
   assetId: number;
@@ -156,6 +174,19 @@ const api = {
     ipcRenderer.invoke('clientes:actualizar', data) as Promise<Customer>,
   toggleClienteEstado: (data: { id: number; estado: 'activo' | 'inactivo' }) =>
     ipcRenderer.invoke('clientes:toggleEstado', data) as Promise<Customer>,
+
+  listarAsignacionesCliente: (customerId: number) =>
+    ipcRenderer.invoke('asignaciones:listarPorCliente', customerId) as Promise<FridgeAssignment[]>,
+  crearAsignacionRefri: (data: {
+    customerId: number;
+    assetId: number;
+    ubicacion: string;
+    entregadoEn: string;
+    deposito?: number;
+    renta?: number;
+  }) => ipcRenderer.invoke('asignaciones:crear', data) as Promise<FridgeAssignment>,
+  eliminarAsignacionRefri: (id: number) => ipcRenderer.invoke('asignaciones:eliminar', id) as Promise<{ ok: boolean }>,
+  listarRefrisDisponibles: () => ipcRenderer.invoke('refris:listarDisponibles') as Promise<FridgeAsset[]>,
 
   // Refris
   listarRefris: () => ipcRenderer.invoke('refris:listar') as Promise<FridgeAsset[]>,
