@@ -627,6 +627,92 @@ safeHandle('refris:listarDisponibles', async () => {
 // --------------------
 // Ventas
 // --------------------
+safeHandle('pos:venta', async (_event, data: {
+  items: { productId: number; cantidad: number }[];
+  customerId?: number | null;
+  cashBoxId?: number | null;
+}) => {
+  const items = (data.items ?? []).map((item) => ({
+    productId: Number(item.productId),
+    cantidad: Number(item.cantidad)
+  }));
+
+  if (items.length === 0) throw new Error('Agrega productos antes de vender');
+
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const productos = await tx.product.findMany({
+      where: { id: { in: items.map((i) => i.productId) } },
+      select: { id: true, precio: true, stock: true, presentacion: true, sabor: { select: { nombre: true } } }
+    });
+
+    const cliente = data.customerId ? await tx.customer.findUnique({ where: { id: data.customerId } }) : null;
+    if (data.customerId && !cliente) throw new Error('Cliente no encontrado');
+
+    const caja = await preferedCashBox(tx, data.cashBoxId ?? undefined);
+    const folio = `POS-${Date.now()}`;
+
+    const total = items.reduce((sum, item) => {
+      const prod = productos.find((p) => p.id === item.productId);
+      if (!prod) throw new Error('Producto no encontrado');
+      if (!Number.isFinite(item.cantidad) || item.cantidad <= 0) throw new Error('Cantidad inválida');
+      if (prod.stock < item.cantidad) throw new Error(`Stock insuficiente para ${prod.sabor.nombre}`);
+      return sum + prod.precio * item.cantidad;
+    }, 0);
+
+    const sale = await tx.sale.create({
+      data: { folio, cajeroId: 1, total, pagoMetodo: cliente ? 'credito' : 'efectivo' }
+    });
+
+    await tx.saleItem.createMany({
+      data: items.map((item) => {
+        const prod = productos.find((p) => p.id === item.productId)!;
+        return {
+          saleId: sale.id,
+          productId: prod.id,
+          cantidad: item.cantidad,
+          precio: prod.precio
+        };
+      })
+    });
+
+    await tx.payment.create({ data: { saleId: sale.id, monto: total, metodo: cliente ? 'credito' : 'efectivo' } });
+
+    await tx.cashMovement.create({
+      data: {
+        cashBoxId: caja.id,
+        tipo: 'ingreso',
+        concepto: `Venta POS ${folio}`,
+        monto: total,
+        fecha: new Date()
+      }
+    });
+
+    for (const item of items) {
+      const prod = productos.find((p) => p.id === item.productId)!;
+      const nuevoStock = prod.stock - item.cantidad;
+      await tx.product.update({ where: { id: prod.id }, data: { stock: nuevoStock } });
+      await tx.finishedStockMovement.create({
+        data: { productId: prod.id, tipo: 'salida', cantidad: item.cantidad, referencia: `venta:${folio}` }
+      });
+    }
+
+    if (cliente) {
+      await tx.customer.update({ where: { id: cliente.id }, data: { saldo: { increment: total } } });
+      await tx.customerMovement.create({
+        data: {
+          customerId: cliente.id,
+          tipo: 'venta_pos',
+          concepto: `Venta POS ${folio}`,
+          monto: total,
+          referencia: `sale:${sale.id}`
+        }
+      });
+    }
+
+    return { saleId: sale.id, folio, total, customerId: cliente?.id ?? null };
+  });
+});
+
 safeHandle('ventas:list', async () => {
   return prisma.sale.findMany({ include: { items: true, pagos: true } });
 });
