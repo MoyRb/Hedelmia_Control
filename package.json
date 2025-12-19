@@ -1,72 +1,52 @@
 {
   "name": "hedelmia-pos",
   "version": "0.1.0",
-  "description": "Aplicación POS de escritorio para paletería Hedelmiá",
   "main": "dist/main/index.js",
-  "author": "Hedelmiá Team",
-  "license": "MIT",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:watch\" \"npm:dev:electron\"",
-    "dev:renderer": "cd src/renderer && vite",
-    "dev:watch": "tsc -w -p tsconfig.json",
-    "dev:electron": "wait-on tcp:5173 && wait-on dist/main/index.js dist/preload/index.js && electronmon --watch dist/main --watch dist/preload dist/main/index.js",
     "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
     "build:renderer": "cd src/renderer && vite build",
     "build:main": "tsc -p tsconfig.json",
     "build:prisma": "prisma generate",
-    "seed": "cross-env DATABASE_URL=\"file:./prisma/hedelmia.db\" prisma db push && cross-env DATABASE_URL=\"file:./prisma/hedelmia.db\" ts-node prisma/seed.ts",
-    "lint": "eslint --ext .ts,.tsx src",
-    "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
   "dependencies": {
     "@prisma/client": "5.16.2",
-    "@radix-ui/react-icons": "1.3.0",
-    "class-variance-authority": "0.7.0",
-    "concurrently": "8.2.2",
-    "electron": "29.4.0",
-    "lucide-react": "^0.561.0",
-    "pdf-lib": "1.17.1",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-router-dom": "6.22.3",
-    "recharts": "2.8.0",
-    "tailwind-merge": "2.2.1",
-    "tailwindcss-animate": "1.0.7",
-    "zod": "^4.1.13",
-    "zustand": "4.5.0"
+    "lucide-react": "^0.562.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.30.2",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
-    "@prisma/engines": "^5.16.2",
-    "@types/node": "20.11.19",
-    "@types/react": "18.2.48",
-    "@types/react-dom": "18.2.18",
-    "@vitejs/plugin-react": "4.2.1",
-    "autoprefixer": "10.4.17",
-    "cross-env": "7.0.3",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.23",
+    "electron": "29.4.0",
     "electron-builder": "24.13.3",
-    "electronmon": "^2.0.4",
-    "eslint": "8.56.0",
-    "eslint-config-prettier": "9.1.0",
-    "eslint-plugin-react": "7.33.2",
-    "postcss": "8.4.33",
+    "postcss": "^8.5.6",
     "prisma": "5.16.2",
-    "tailwindcss": "3.4.1",
-    "ts-node": "10.9.2",
-    "typescript": "5.3.3",
-    "vite": "5.0.12",
-    "wait-on": "^9.0.3"
+    "tailwindcss": "^4.1.18",
+    "vite": "^5.0.12"
   },
   "build": {
-    "appId": "com.hedelmia.pos",
-    "productName": "Hedelmiá POS",
+    "asar": false,
     "files": [
       "dist/**/*",
-      "node_modules/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/@prisma/client/**/*"
     ],
-    "directories": {
-      "buildResources": "build"
+    "asarUnpack": [
+      "**/.prisma/**"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/.prisma",
+        "to": ".prisma"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
     }
   }
 }
