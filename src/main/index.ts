@@ -1,46 +1,51 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'path';
-import fs from 'fs';
+import { app, BrowserWindow, ipcMain } from 'electron'
+import path from 'path'
+import fs from 'fs'
+import { createRequire } from 'module'
 
 /* =========================================================
-   PRISMA – Electron-safe lazy loader (FINAL)
+   ESM → CommonJS bridge (NECESARIO)
 ========================================================= */
-type PrismaClientType = import('@prisma/client').PrismaClient;
+const cjsRequire = createRequire(import.meta.url)
 
-let prisma: PrismaClientType | null = null;
+/* =========================================================
+   PRISMA – Electron-safe lazy loader
+========================================================= */
+import type { PrismaClient } from '@prisma/client'
 
-function getPrisma(): PrismaClientType {
+let prisma: PrismaClient | undefined
+
+function getPrisma(): PrismaClient {
   if (!prisma) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { PrismaClient } = require('@prisma/client');
-    prisma = new PrismaClient();
+    const { PrismaClient } = cjsRequire('@prisma/client')
+    prisma = new PrismaClient()
   }
-  return prisma!;
+  return prisma!
 }
 
 /* =========================================================
    APP CONFIG
 ========================================================= */
-const isDev = !app.isPackaged;
+const isDev = !app.isPackaged
 
 /* =========================================================
-   DATABASE SETUP
+   DATABASE SETUP (SQLite portable)
 ========================================================= */
-const dbPath = path.join(app.getPath('userData'), 'hedelmia.db');
+const dbPath = path.join(app.getPath('userData'), 'hedelmia.db')
 
 const templateDbPath = isDev
   ? path.join(__dirname, '../../prisma/hedelmia.db')
-  : path.join(process.resourcesPath, 'prisma', 'hedelmia.db');
+  : path.join(process.resourcesPath, 'prisma', 'hedelmia.db')
 
 if (!fs.existsSync(dbPath)) {
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true })
   if (fs.existsSync(templateDbPath)) {
-    fs.copyFileSync(templateDbPath, dbPath);
+    fs.copyFileSync(templateDbPath, dbPath)
   }
 }
 
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? `file:${dbPath}`;
+  process.env.DATABASE_URL ?? `file:${dbPath}`
 
 /* =========================================================
    IPC SAFE HANDLER
@@ -51,13 +56,13 @@ const safeHandle = (
 ) => {
   ipcMain.handle(channel, async (event, ...args) => {
     try {
-      return await fn(event, ...args);
+      return await fn(event, ...args)
     } catch (err: any) {
-      console.error(`[IPC:${channel}]`, err);
-      throw new Error(err?.message ?? String(err));
+      console.error(`[IPC:${channel}]`, err)
+      throw new Error(err?.message ?? String(err))
     }
-  });
-};
+  })
+}
 
 /* =========================================================
    WINDOW
@@ -72,51 +77,46 @@ const createWindow = async () => {
       contextIsolation: true,
       nodeIntegration: false
     }
-  });
+  })
 
   if (isDev) {
-    await win.loadURL('http://localhost:5173');
-    win.webContents.openDevTools();
+    await win.loadURL('http://localhost:5173')
+    win.webContents.openDevTools()
   } else {
-    // ✅ RUTA CORRECTA EN PRODUCCIÓN (ESTA ES LA CLAVE)
-    await win.loadFile(
-      path.join(__dirname, '../renderer/index.html')
-    );
+    await win.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
-};
+}
 
 /* =========================================================
    APP LIFECYCLE
 ========================================================= */
-app.whenReady().then(createWindow);
+app.whenReady().then(createWindow)
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
+  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+})
 
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
     try {
-      if (prisma) await prisma.$disconnect();
+      if (prisma) await prisma.$disconnect()
     } finally {
-      app.quit();
+      app.quit()
     }
   }
-});
+})
 
 /* =========================================================
-   EJEMPLO REAL DE PRISMA
+   IPC HANDLERS – DASHBOARD
 ========================================================= */
 safeHandle('dashboard:resumen', async () => {
-  const prisma = getPrisma();
+  const prisma = getPrisma()
 
-  const inicioHoy = new Date();
-  inicioHoy.setHours(0, 0, 0, 0);
+  const inicioHoy = new Date()
+  inicioHoy.setHours(0, 0, 0, 0)
 
-  const finHoy = new Date(inicioHoy);
-  finHoy.setDate(finHoy.getDate() + 1);
+  const finHoy = new Date(inicioHoy)
+  finHoy.setDate(finHoy.getDate() + 1)
 
   const ventasHoy = await prisma.sale.findMany({
     where: {
@@ -125,13 +125,92 @@ safeHandle('dashboard:resumen', async () => {
         lt: finHoy
       }
     }
-  });
+  })
 
   return {
     ventasDia: ventasHoy.reduce((sum, v) => sum + v.total, 0)
-  };
-});
+  }
+})
 
 /* =========================================================
-   FIN – ESTE ARCHIVO YA ES ESTABLE
+   IPC HANDLERS – CATÁLOGO
 ========================================================= */
+safeHandle('catalogo:listar', async () => {
+  const prisma = getPrisma()
+
+  const tipos = await prisma.productType.findMany()
+  const sabores = await prisma.flavor.findMany()
+  const productos = await prisma.product.findMany({
+    include: { tipo: true, sabor: true }
+  })
+
+  return { tipos, sabores, productos }
+})
+
+/* =========================================================
+   IPC HANDLERS – INVENTARIOS
+========================================================= */
+safeHandle('inventario:listarMaterias', async () => {
+  const prisma = getPrisma()
+  return prisma.rawMaterial.findMany({
+    include: { unidad: true }
+  })
+})
+
+safeHandle('inventario:listarProductos', async () => {
+  const prisma = getPrisma()
+  return prisma.product.findMany()
+})
+
+/* =========================================================
+   IPC HANDLERS – CLIENTES
+========================================================= */
+safeHandle('clientes:listar', async () => {
+  const prisma = getPrisma()
+  return prisma.customer.findMany({
+    include: {
+      creditos: true,
+      movimientos: true
+    }
+  })
+})
+
+/* =========================================================
+   IPC HANDLERS – CAJAS
+========================================================= */
+safeHandle('cajas:listar', async () => {
+  const prisma = getPrisma()
+  return prisma.cashBox.findMany()
+})
+
+safeHandle('cajas:listarMovimientos', async (_event, cashBoxId: number) => {
+  const prisma = getPrisma()
+  return prisma.cashMovement.findMany({
+    where: { cashBoxId },
+    orderBy: { fecha: 'desc' }
+  })
+})
+
+/* =========================================================
+   IPC HANDLERS – REFRIS
+========================================================= */
+safeHandle('refri:listar', async () => {
+  const prisma = getPrisma()
+  return prisma.fridgeAsset.findMany({
+    include: {
+      asignaciones: true,
+      visitas: true
+    }
+  })
+})
+
+/* =========================================================
+   IPC HANDLERS – STOCK
+========================================================= */
+safeHandle('stock:movimientos', async (_event, productId: number) => {
+  const prisma = getPrisma()
+  return prisma.finishedStockMovement.findMany({
+    where: { productId },
+    orderBy: { createdAt: 'desc' }
+  })
+})

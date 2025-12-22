@@ -1,14 +1,19 @@
 {
   "name": "hedelmia-pos",
   "version": "0.1.0",
+  "description": "Hedelmía POS",
+  "author": "Hedelmia",
   "main": "dist/main/index.js",
+  "type": "module",
+
   "scripts": {
-    "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
-    "build:renderer": "cd src/renderer && vite build",
-    "build:main": "tsc -p tsconfig.json",
     "build:prisma": "prisma generate",
+    "build:renderer": "cd src/renderer && vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
     "dist": "electron-builder"
   },
+
   "dependencies": {
     "@prisma/client": "5.16.2",
     "lucide-react": "^0.562.0",
@@ -17,6 +22,7 @@
     "react-router-dom": "^6.30.2",
     "recharts": "^3.6.0"
   },
+
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "@vitejs/plugin-react": "^4.2.1",
@@ -28,22 +34,34 @@
     "tailwindcss": "^4.1.18",
     "vite": "^5.0.12"
   },
+
   "build": {
-    "asar": false,
+    "appId": "com.hedelmia.pos",
+    "productName": "Hedelmía POS",
+    "asar": true,
+
+    "asarUnpack": [
+      "**/node_modules/.prisma/**",
+      "**/node_modules/@prisma/**"
+    ],
+
     "files": [
       "dist/**/*",
-      "package.json",
-      "node_modules/@prisma/client/**/*"
+      "node_modules/**/*",
+      "prisma/schema.prisma"
     ],
-    "asarUnpack": [
-      "**/.prisma/**"
-    ],
+
     "extraResources": [
       {
         "from": "node_modules/.prisma",
-        "to": ".prisma"
+        "to": "node_modules/.prisma"
+      },
+      {
+        "from": "prisma/hedelmia.db",
+        "to": "prisma/hedelmia.db"
       }
     ],
+
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"
