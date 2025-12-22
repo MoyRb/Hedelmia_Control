@@ -77,6 +77,9 @@ const safeHandle = (
   channel: string,
   fn: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<any>
 ) => {
+  if (ipcMain.listenerCount(channel) > 0) {
+    ipcMain.removeHandler(channel)
+  }
   ipcMain.handle(channel, async (event, ...args) => {
     try {
       return await fn(event, ...args)
