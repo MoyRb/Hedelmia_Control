@@ -37,12 +37,24 @@ El instalador se genera con electron-builder.
 ## Base de datos y seed
 La aplicación utiliza un único archivo SQLite almacenado en la ruta `app.getPath('userData')/hedelmia.db`. Al iniciar Electron, si no existe, se copiará automáticamente una base presembrada desde `prisma/hedelmia.db` (si está disponible en el paquete).
 
-Para recrear esa base semilla o actualizar el esquema ejecuta:
+### Reset controlado (desarrollo)
+Este flujo alinea el **schema.prisma** con una base SQLite nueva sin tocar la lógica de la app. Incluye las tablas/columnas nuevas como `CustomerMovement` y `FridgeAssignment.fechaFin`.
+
+1. Elimina la base existente (si existe):
 ```bash
-npx prisma generate
-PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma db push
-npx ts-node prisma/seed.ts
+rm -f prisma/hedelmia.db
 ```
+2. Genera el cliente y recrea el esquema desde el schema:
+```bash
+DATABASE_URL="file:./prisma/hedelmia.db" npx prisma generate
+DATABASE_URL="file:./prisma/hedelmia.db" npx prisma db push
+```
+3. Ejecuta el seed:
+```bash
+DATABASE_URL="file:./prisma/hedelmia.db" npm run seed
+```
+4. (Opcional) Borra la copia local en `app.getPath('userData')/hedelmia.db` si ya estaba en uso.
+
 El admin inicial es `admin@hedelmia.local` / `admin123`.
 
 ## Respaldo y export
