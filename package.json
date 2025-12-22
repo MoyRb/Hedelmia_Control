@@ -41,19 +41,20 @@
     "productName": "Hedelmía POS",
     "asar": true,
 
-    "asarUnpack": [
-      "node_modules/.prisma/**",
-      "node_modules/@prisma/**",
-      "dist/preload/**"
-    ],
-
     "files": [
       "dist/**/*",
-      "node_modules/**/*",
-      "prisma/schema.prisma"
+      "package.json"
     ],
 
     "extraResources": [
+      {
+        "from": "node_modules/@prisma",
+        "to": "node_modules/@prisma"
+      },
+      {
+        "from": "node_modules/.prisma",
+        "to": "node_modules/.prisma"
+      },
       {
         "from": "prisma/hedelmia.db",
         "to": "prisma/hedelmia.db"
