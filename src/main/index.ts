@@ -59,14 +59,9 @@ async function ensureDefaultCashBoxes(prismaClient: PrismaClient) {
 const isDev = !app.isPackaged
 
 const resolvePreloadPath = () => {
-  const appPath = app.getAppPath()
-  const resourcePath = process.resourcesPath
   const candidates = [
     path.join(__dirname, '../preload/index.js'),
-    path.join(appPath, 'dist', 'preload', 'index.js'),
-    path.join(resourcePath, 'app.asar', 'dist', 'preload', 'index.js'),
-    path.join(resourcePath, 'app.asar.unpacked', 'dist', 'preload', 'index.js'),
-    path.join(resourcePath, 'dist', 'preload', 'index.js')
+    path.join(app.getAppPath(), 'dist', 'preload', 'index.js')
   ]
   const found = candidates.find((candidate) => fs.existsSync(candidate))
   if (!found) {
