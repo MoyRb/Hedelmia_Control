@@ -195,7 +195,7 @@ const api = {
     ipcRenderer.invoke('catalogo:toggleProducto', data) as Promise<Product>,
 
   // Cajas
-  listarCajas: () => ipcRenderer.invoke('cajas:listarMovimientos') as Promise<CashBox[]>,
+  listarCajas: () => ipcRenderer.invoke('cajas:listar') as Promise<CashBox[]>,
   crearMovimiento: (data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) =>
     ipcRenderer.invoke('cajas:crearMovimiento', data) as Promise<CashMovement>,
 
