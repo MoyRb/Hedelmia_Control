@@ -42,7 +42,8 @@
 
     "asarUnpack": [
       "**/node_modules/.prisma/**",
-      "**/node_modules/@prisma/**"
+      "**/node_modules/@prisma/**",
+      "dist/preload/**"
     ],
 
     "files": [
