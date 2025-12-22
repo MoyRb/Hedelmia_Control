@@ -17,9 +17,40 @@ import type { PrismaClient } from '@prisma/client'
 
 let prisma: PrismaClient | undefined
 
+const resolvePrismaClientEntry = () => {
+  const appPath = app.getAppPath()
+  const candidates = [
+    path.join(appPath, 'node_modules', '.prisma', 'client', 'default.js'),
+    path.join(
+      process.resourcesPath,
+      'app.asar.unpacked',
+      'node_modules',
+      '.prisma',
+      'client',
+      'default.js'
+    ),
+    path.join(appPath, 'node_modules', '@prisma', 'client', 'default.js'),
+    path.join(
+      process.resourcesPath,
+      'app.asar.unpacked',
+      'node_modules',
+      '@prisma',
+      'client',
+      'default.js'
+    )
+  ]
+  const found = candidates.find((candidate) => fs.existsSync(candidate))
+  if (!found) {
+    console.error('[prisma] No se encontró el cliente generado.', { candidates })
+    return candidates[0]
+  }
+  return found
+}
+
 function getPrisma(): PrismaClient {
   if (!prisma) {
-    const { PrismaClient } = cjsRequire('@prisma/client')
+    const prismaClientEntry = resolvePrismaClientEntry()
+    const { PrismaClient } = cjsRequire(prismaClientEntry)
     prisma = new PrismaClient()
   }
   return prisma!
