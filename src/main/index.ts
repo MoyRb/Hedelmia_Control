@@ -146,17 +146,113 @@ safeHandle('dashboard:resumen', async () => {
   const finHoy = new Date(inicioHoy)
   finHoy.setDate(finHoy.getDate() + 1)
 
-  const ventasHoy = await prisma.sale.findMany({
-    where: {
-      fecha: {
-        gte: inicioHoy,
-        lt: finHoy
-      }
-    }
+  const inicioSemana = new Date(inicioHoy)
+  inicioSemana.setDate(inicioSemana.getDate() - 6)
+
+  const [ventasHoy, movimientosSemana, ventasRecientes, clientesSaldo, inventarioBajo, refris] =
+    await Promise.all([
+      prisma.sale.findMany({
+        where: {
+          fecha: {
+            gte: inicioHoy,
+            lt: finHoy
+          }
+        }
+      }),
+      prisma.cashMovement.findMany({
+        where: {
+          fecha: {
+            gte: inicioSemana,
+            lt: finHoy
+          }
+        },
+        orderBy: { fecha: 'asc' }
+      }),
+      prisma.sale.findMany({
+        take: 5,
+        orderBy: { fecha: 'desc' },
+        select: {
+          id: true,
+          folio: true,
+          total: true,
+          pagoMetodo: true,
+          fecha: true
+        }
+      }),
+      prisma.customer.findMany({
+        take: 5,
+        orderBy: { saldo: 'desc' }
+      }),
+      prisma.product.findMany({
+        take: 5,
+        orderBy: { stock: 'asc' },
+        include: { tipo: true, sabor: true }
+      }),
+      prisma.fridgeAsset.findMany({
+        include: {
+          asignaciones: true
+        }
+      })
+    ])
+
+  const ventasDia = ventasHoy.reduce((sum, v) => sum + v.total, 0)
+
+  const cajaDia = movimientosSemana
+    .filter((mov) => mov.fecha >= inicioHoy && mov.fecha < finHoy)
+    .reduce((sum, mov) => sum + (mov.tipo === 'ingreso' ? mov.monto : -mov.monto), 0)
+
+  const clientesConAdeudo = await prisma.customer.count({
+    where: { saldo: { gt: 0 } }
   })
 
+  const asignacionesActivas = refris.filter((refri) =>
+    refri.asignaciones.some((asignacion) => asignacion.fechaFin === null)
+  )
+  const refrisAsignados = asignacionesActivas.length
+  const refrisDisponibles = refris.length - refrisAsignados
+
+  const flujoPorDia = new Map<string, { ingresos: number; egresos: number }>()
+  for (let i = 0; i < 7; i += 1) {
+    const fecha = new Date(inicioSemana)
+    fecha.setDate(inicioSemana.getDate() + i)
+    const clave = fecha.toISOString().slice(0, 10)
+    flujoPorDia.set(clave, { ingresos: 0, egresos: 0 })
+  }
+
+  movimientosSemana.forEach((mov) => {
+    const clave = mov.fecha.toISOString().slice(0, 10)
+    const actual = flujoPorDia.get(clave) ?? { ingresos: 0, egresos: 0 }
+    if (mov.tipo === 'ingreso') actual.ingresos += mov.monto
+    if (mov.tipo === 'egreso') actual.egresos += mov.monto
+    flujoPorDia.set(clave, actual)
+  })
+
+  const ingresosVsEgresos = Array.from(flujoPorDia.entries()).map(([fecha, valores]) => ({
+    fecha,
+    ingresos: valores.ingresos,
+    egresos: valores.egresos
+  }))
+
   return {
-    ventasDia: ventasHoy.reduce((sum, v) => sum + v.total, 0)
+    kpis: {
+      cajaDia,
+      ventasDia,
+      clientesConAdeudo,
+      refrisAsignados,
+      refrisDisponibles
+    },
+    tablas: {
+      ultimasVentas: ventasRecientes,
+      clientesSaldo,
+      inventarioBajo
+    },
+    graficas: {
+      ingresosVsEgresos,
+      refrisAsignadosVsLibres: [
+        { label: 'Asignados', valor: refrisAsignados },
+        { label: 'Disponibles', valor: refrisDisponibles }
+      ]
+    }
   }
 })
 
@@ -175,20 +271,249 @@ safeHandle('catalogo:listar', async () => {
   return { tipos, sabores, productos }
 })
 
+safeHandle('catalogo:crearTipo', async (_event, data: { nombre: string; activo?: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.productType.create({
+    data: { nombre: data.nombre, activo: data.activo ?? true }
+  })
+})
+
+safeHandle('catalogo:actualizarTipo', async (_event, data: { id: number; nombre: string; activo?: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.productType.update({
+    where: { id: data.id },
+    data: { nombre: data.nombre, activo: data.activo }
+  })
+})
+
+safeHandle('catalogo:toggleTipo', async (_event, data: { id: number; activo: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.productType.update({
+    where: { id: data.id },
+    data: { activo: data.activo }
+  })
+})
+
+safeHandle('catalogo:crearSabor', async (_event, data: { nombre: string; color?: string; activo?: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.flavor.create({
+    data: { nombre: data.nombre, color: data.color ?? null, activo: data.activo ?? true }
+  })
+})
+
+safeHandle(
+  'catalogo:actualizarSabor',
+  async (_event, data: { id: number; nombre: string; color?: string | null; activo?: boolean }) => {
+    const prisma = getPrisma()
+    return prisma.flavor.update({
+      where: { id: data.id },
+      data: { nombre: data.nombre, color: data.color ?? null, activo: data.activo }
+    })
+  }
+)
+
+safeHandle('catalogo:toggleSabor', async (_event, data: { id: number; activo: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.flavor.update({
+    where: { id: data.id },
+    data: { activo: data.activo }
+  })
+})
+
+safeHandle(
+  'catalogo:crearProducto',
+  async (
+    _event,
+    data: {
+      tipoId: number
+      saborId: number
+      presentacion: string
+      precio: number
+      costo: number
+      sku?: string
+      stock?: number
+      activo?: boolean
+    }
+  ) => {
+    const prisma = getPrisma()
+    return prisma.product.create({
+      data: {
+        tipoId: data.tipoId,
+        saborId: data.saborId,
+        presentacion: data.presentacion,
+        precio: data.precio,
+        costo: data.costo,
+        sku: data.sku ?? null,
+        stock: data.stock ?? 0,
+        activo: data.activo ?? true
+      },
+      include: { tipo: true, sabor: true }
+    })
+  }
+)
+
+safeHandle(
+  'catalogo:actualizarProducto',
+  async (
+    _event,
+    data: {
+      id: number
+      tipoId: number
+      saborId: number
+      presentacion: string
+      precio: number
+      costo: number
+      sku?: string | null
+      stock?: number
+      activo?: boolean
+    }
+  ) => {
+    const prisma = getPrisma()
+    return prisma.product.update({
+      where: { id: data.id },
+      data: {
+        tipoId: data.tipoId,
+        saborId: data.saborId,
+        presentacion: data.presentacion,
+        precio: data.precio,
+        costo: data.costo,
+        sku: data.sku ?? null,
+        stock: data.stock,
+        activo: data.activo
+      },
+      include: { tipo: true, sabor: true }
+    })
+  }
+)
+
+safeHandle('catalogo:toggleProducto', async (_event, data: { id: number; activo: boolean }) => {
+  const prisma = getPrisma()
+  return prisma.product.update({
+    where: { id: data.id },
+    data: { activo: data.activo },
+    include: { tipo: true, sabor: true }
+  })
+})
+
 /* =========================================================
    IPC HANDLERS – INVENTARIOS
 ========================================================= */
 safeHandle('inventario:listarMaterias', async () => {
   const prisma = getPrisma()
-  return prisma.rawMaterial.findMany({
-    include: { unidad: true }
-  })
+  const [materias, unidades] = await Promise.all([
+    prisma.rawMaterial.findMany({
+      include: { unidad: true, movimientos: true }
+    }),
+    prisma.unit.findMany()
+  ])
+  return { materias, unidades }
 })
 
 safeHandle('inventario:listarProductos', async () => {
   const prisma = getPrisma()
   return prisma.product.findMany()
 })
+
+safeHandle('inventario:listarProductosStock', async () => {
+  const prisma = getPrisma()
+  return prisma.product.findMany({
+    include: {
+      tipo: true,
+      sabor: true,
+      stockMoves: { orderBy: { createdAt: 'desc' } }
+    }
+  })
+})
+
+safeHandle('inventario:crearUnidad', async (_event, data: { nombre: string }) => {
+  const prisma = getPrisma()
+  return prisma.unit.create({
+    data: { nombre: data.nombre }
+  })
+})
+
+safeHandle(
+  'inventario:crearMateria',
+  async (_event, data: { nombre: string; unidadId: number; stock?: number; costoProm?: number }) => {
+    const prisma = getPrisma()
+    return prisma.rawMaterial.create({
+      data: {
+        nombre: data.nombre,
+        unidadId: data.unidadId,
+        stock: data.stock ?? 0,
+        costoProm: data.costoProm ?? 0
+      },
+      include: { unidad: true, movimientos: true }
+    })
+  }
+)
+
+safeHandle(
+  'inventario:movimientoMateria',
+  async (_event, data: { materialId: number; tipo: 'entrada' | 'salida'; cantidad: number; costoTotal?: number }) => {
+    const prisma = getPrisma()
+    return prisma.$transaction(async (tx) => {
+      const material = await tx.rawMaterial.findUnique({ where: { id: data.materialId } })
+      if (!material) throw new Error('Materia prima no encontrada')
+
+      const ajuste = data.tipo === 'entrada' ? data.cantidad : -data.cantidad
+      const stockActual = material.stock + ajuste
+      const costoProm =
+        data.tipo === 'entrada' && data.costoTotal
+          ? (material.stock * material.costoProm + data.costoTotal) / Math.max(stockActual, 1)
+          : material.costoProm
+
+      await tx.rawMaterialMovement.create({
+        data: {
+          materialId: data.materialId,
+          tipo: data.tipo,
+          cantidad: data.cantidad,
+          costoTotal: data.costoTotal ?? 0
+        }
+      })
+
+      return tx.rawMaterial.update({
+        where: { id: data.materialId },
+        data: {
+          stock: stockActual,
+          costoProm
+        },
+        include: { unidad: true, movimientos: true }
+      })
+    })
+  }
+)
+
+safeHandle(
+  'inventario:movimientoProducto',
+  async (_event, data: { productId: number; tipo: 'entrada' | 'salida'; cantidad: number; referencia?: string }) => {
+    const prisma = getPrisma()
+    return prisma.$transaction(async (tx) => {
+      const producto = await tx.product.findUnique({ where: { id: data.productId } })
+      if (!producto) throw new Error('Producto no encontrado')
+
+      const ajuste = data.tipo === 'entrada' ? data.cantidad : -data.cantidad
+      const stockActual = producto.stock + ajuste
+
+      await tx.finishedStockMovement.create({
+        data: {
+          productId: data.productId,
+          tipo: data.tipo,
+          cantidad: data.cantidad,
+          referencia: data.referencia ?? null
+        }
+      })
+
+      return tx.product.update({
+        where: { id: data.productId },
+        data: {
+          stock: stockActual
+        },
+        include: { tipo: true, sabor: true }
+      })
+    })
+  }
+)
 
 /* =========================================================
    IPC HANDLERS – CLIENTES
@@ -203,12 +528,177 @@ safeHandle('clientes:listar', async () => {
   })
 })
 
+safeHandle(
+  'clientes:crear',
+  async (
+    _event,
+    data: { nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
+  ) => {
+    const prisma = getPrisma()
+    return prisma.customer.create({
+      data: {
+        nombre: data.nombre,
+        telefono: data.telefono ?? null,
+        limite: data.limite ?? 0,
+        saldo: data.saldo ?? 0,
+        estado: data.estado ?? 'activo'
+      }
+    })
+  }
+)
+
+safeHandle(
+  'clientes:actualizar',
+  async (
+    _event,
+    data: { id: number; nombre: string; telefono?: string; limite?: number; saldo?: number; estado?: 'activo' | 'inactivo' }
+  ) => {
+    const prisma = getPrisma()
+    return prisma.customer.update({
+      where: { id: data.id },
+      data: {
+        nombre: data.nombre,
+        telefono: data.telefono ?? null,
+        limite: data.limite,
+        saldo: data.saldo,
+        estado: data.estado
+      }
+    })
+  }
+)
+
+safeHandle('clientes:toggleEstado', async (_event, data: { id: number; estado: 'activo' | 'inactivo' }) => {
+  const prisma = getPrisma()
+  return prisma.customer.update({
+    where: { id: data.id },
+    data: { estado: data.estado }
+  })
+})
+
+safeHandle('creditos:listarConSaldo', async () => {
+  const prisma = getPrisma()
+  return prisma.customer.findMany({
+    where: { saldo: { gt: 0 } },
+    orderBy: { saldo: 'desc' }
+  })
+})
+
+safeHandle('pagares:listarPorCliente', async (_event, customerId: number) => {
+  const prisma = getPrisma()
+  return prisma.promissoryNote.findMany({
+    where: { customerId },
+    include: { abonos: { orderBy: { fecha: 'desc' } } },
+    orderBy: { fecha: 'desc' }
+  })
+})
+
+safeHandle('pagares:crear', async (_event, data: { customerId: number; monto: number }) => {
+  const prisma = getPrisma()
+  return prisma.promissoryNote.create({
+    data: {
+      customerId: data.customerId,
+      monto: data.monto,
+      estado: 'vigente'
+    }
+  })
+})
+
+safeHandle(
+  'pagares:registrarAbono',
+  async (_event, data: { promissoryNoteId: number; monto: number; cashBoxId?: number }) => {
+    const prisma = getPrisma()
+    return prisma.$transaction(async (tx) => {
+      const pagare = await tx.promissoryNote.findUnique({
+        where: { id: data.promissoryNoteId },
+        include: { customer: true }
+      })
+      if (!pagare) throw new Error('Pagaré no encontrado')
+
+      await tx.promissoryPayment.create({
+        data: {
+          promissoryNoteId: data.promissoryNoteId,
+          monto: data.monto
+        }
+      })
+
+      const montoRestante = Math.max(pagare.monto - data.monto, 0)
+      const estado = montoRestante === 0 ? 'pagado' : pagare.estado
+
+      const pagareActualizado = await tx.promissoryNote.update({
+        where: { id: data.promissoryNoteId },
+        data: { monto: montoRestante, estado },
+        include: { abonos: { orderBy: { fecha: 'desc' } } }
+      })
+
+      const saldoNuevo = Math.max(pagare.customer.saldo - data.monto, 0)
+      await tx.customer.update({
+        where: { id: pagare.customerId },
+        data: { saldo: saldoNuevo }
+      })
+
+      if (data.cashBoxId) {
+        await tx.cashMovement.create({
+          data: {
+            cashBoxId: data.cashBoxId,
+            tipo: 'ingreso',
+            concepto: `Abono pagaré #${pagare.id}`,
+            monto: data.monto
+          }
+        })
+      }
+
+      return { pagare: pagareActualizado, saldoCliente: saldoNuevo }
+    })
+  }
+)
+
+safeHandle('asignaciones:listarPorCliente', async (_event, customerId: number) => {
+  const prisma = getPrisma()
+  return prisma.fridgeAssignment.findMany({
+    where: { customerId },
+    include: { asset: true }
+  })
+})
+
+safeHandle(
+  'asignaciones:crear',
+  async (
+    _event,
+    data: { customerId: number; assetId: number; ubicacion: string; entregadoEn: string; deposito?: number; renta?: number }
+  ) => {
+    const prisma = getPrisma()
+    return prisma.fridgeAssignment.create({
+      data: {
+        customerId: data.customerId,
+        assetId: data.assetId,
+        ubicacion: data.ubicacion,
+        entregadoEn: new Date(data.entregadoEn),
+        deposito: data.deposito ?? null,
+        renta: data.renta ?? null
+      },
+      include: { asset: true }
+    })
+  }
+)
+
+safeHandle('asignaciones:eliminar', async (_event, id: number) => {
+  const prisma = getPrisma()
+  await prisma.fridgeAssignment.delete({
+    where: { id }
+  })
+  return { ok: true }
+})
+
 /* =========================================================
    IPC HANDLERS – CAJAS
 ========================================================= */
 safeHandle('cajas:listar', async () => {
   const prisma = getPrisma()
-  return prisma.cashBox.findMany()
+  return prisma.cashBox.findMany({
+    include: {
+      movimientos: { orderBy: { fecha: 'desc' } }
+    }
+  })
 })
 
 safeHandle('cajas:listarMovimientos', async (_event, cashBoxId: number) => {
@@ -217,6 +707,28 @@ safeHandle('cajas:listarMovimientos', async (_event, cashBoxId: number) => {
     where: { cashBoxId },
     orderBy: { fecha: 'desc' }
   })
+})
+
+safeHandle(
+  'cajas:crearMovimiento',
+  async (_event, data: { cashBoxId: number; tipo: string; concepto: string; monto: number; fecha?: string }) => {
+    const prisma = getPrisma()
+    return prisma.cashMovement.create({
+      data: {
+        cashBoxId: data.cashBoxId,
+        tipo: data.tipo,
+        concepto: data.concepto,
+        monto: data.monto,
+        fecha: data.fecha ? new Date(data.fecha) : undefined
+      }
+    })
+  }
+)
+
+safeHandle('backup:export', async (_event, destino: string) => {
+  fs.mkdirSync(path.dirname(destino), { recursive: true })
+  fs.copyFileSync(dbPath, destino)
+  return { ok: true }
 })
 
 /* =========================================================
@@ -232,6 +744,119 @@ safeHandle('refri:listar', async () => {
   })
 })
 
+safeHandle('refris:listar', async () => {
+  const prisma = getPrisma()
+  return prisma.fridgeAsset.findMany({
+    include: {
+      asignaciones: true,
+      visitas: true
+    }
+  })
+})
+
+safeHandle('refris:listarDisponibles', async () => {
+  const prisma = getPrisma()
+  return prisma.fridgeAsset.findMany({
+    where: {
+      estado: 'activo',
+      asignaciones: { none: { fechaFin: null } }
+    }
+  })
+})
+
+safeHandle('refris:crear', async (_event, data: { modelo: string; serie: string; estado?: string }) => {
+  const prisma = getPrisma()
+  return prisma.fridgeAsset.create({
+    data: {
+      modelo: data.modelo,
+      serie: data.serie,
+      estado: data.estado ?? 'activo'
+    }
+  })
+})
+
+safeHandle(
+  'refris:actualizar',
+  async (_event, data: { id: number; modelo?: string; serie?: string; estado?: string }) => {
+    const prisma = getPrisma()
+    return prisma.fridgeAsset.update({
+      where: { id: data.id },
+      data: {
+        modelo: data.modelo,
+        serie: data.serie,
+        estado: data.estado
+      }
+    })
+  }
+)
+
+safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
+  const prisma = getPrisma()
+  const actual = await prisma.fridgeAsset.findUnique({ where: { id: data.id } })
+  if (!actual) throw new Error('Refri no encontrado')
+  const estado = actual.estado === 'activo' ? 'inactivo' : 'activo'
+  return prisma.fridgeAsset.update({
+    where: { id: data.id },
+    data: { estado }
+  })
+})
+
+safeHandle('ventas:list', async () => {
+  const prisma = getPrisma()
+  return prisma.sale.findMany({
+    orderBy: { fecha: 'desc' },
+    include: {
+      items: true
+    }
+  })
+})
+
+safeHandle(
+  'ventas:crear',
+  async (
+    _event,
+    data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }
+  ) => {
+    const prisma = getPrisma()
+    return crearVenta(prisma, {
+      items: data.items,
+      pagoMetodo: data.metodo,
+      cajeroId: data.cajeroId
+    })
+  }
+)
+
+safeHandle(
+  'pos:venta',
+  async (_event, data: { items: { productId: number; cantidad: number }[]; customerId?: number | null; cashBoxId?: number | null }) => {
+    const prisma = getPrisma()
+    const venta = await crearVenta(prisma, {
+      items: data.items,
+      pagoMetodo: 'efectivo'
+    })
+
+    if (data.cashBoxId) {
+      await prisma.cashMovement.create({
+        data: {
+          cashBoxId: data.cashBoxId,
+          tipo: 'ingreso',
+          concepto: `Venta POS ${venta.folio}`,
+          monto: venta.total
+        }
+      })
+    }
+
+    if (data.customerId) {
+      await prisma.customer.update({
+        where: { id: data.customerId },
+        data: { saldo: { increment: venta.total } }
+      })
+    }
+
+    return { saleId: venta.id, folio: venta.folio, total: venta.total, customerId: data.customerId ?? null }
+  }
+)
+
 /* =========================================================
    IPC HANDLERS – STOCK
 ========================================================= */
@@ -242,3 +867,68 @@ safeHandle('stock:movimientos', async (_event, productId: number) => {
     orderBy: { createdAt: 'desc' }
   })
 })
+
+const crearVenta = async (
+  prisma: PrismaClient,
+  data: { items: { productId: number; cantidad: number }[]; pagoMetodo: string; cajeroId?: number }
+) => {
+  const cajeroId = data.cajeroId ?? (await obtenerCajero(prisma))
+  return prisma.$transaction(async (tx) => {
+    const productos = await tx.product.findMany({
+      where: { id: { in: data.items.map((item) => item.productId) } }
+    })
+
+    const total = data.items.reduce((sum, item) => {
+      const producto = productos.find((p) => p.id === item.productId)
+      if (!producto) throw new Error('Producto no encontrado')
+      return sum + producto.precio * item.cantidad
+    }, 0)
+
+    const venta = await tx.sale.create({
+      data: {
+        folio: `V-${Date.now()}`,
+        cajeroId,
+        total,
+        pagoMetodo: data.pagoMetodo
+      }
+    })
+
+    await Promise.all(
+      data.items.map((item) =>
+        tx.saleItem.create({
+          data: {
+            saleId: venta.id,
+            productId: item.productId,
+            cantidad: item.cantidad,
+            precio: productos.find((p) => p.id === item.productId)?.precio ?? 0
+          }
+        })
+      )
+    )
+
+    await Promise.all(
+      data.items.map((item) =>
+        tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.cantidad } }
+        })
+      )
+    )
+
+    return venta
+  })
+}
+
+const obtenerCajero = async (prisma: PrismaClient) => {
+  const cajero = await prisma.user.findFirst()
+  if (cajero) return cajero.id
+
+  const creado = await prisma.user.create({
+    data: {
+      email: 'cajero@local',
+      nombre: 'Cajero',
+      password: 'cajero'
+    }
+  })
+  return creado.id
+}
