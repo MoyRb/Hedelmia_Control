@@ -53,10 +53,11 @@ export default function Clientes() {
     setError('');
     try {
       const data = await window.hedelmia.listarClientes();
+      if (!Array.isArray(data)) throw new Error('Respuesta inválida de clientes.');
       setClientes(data);
     } catch (err) {
       console.error(err);
-      setError('No se pudieron cargar los clientes.');
+      setError(`No se pudieron cargar los clientes.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargando(false);
     }

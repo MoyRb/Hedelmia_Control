@@ -13,6 +13,7 @@ export default function Ventas() {
   const [guardando, setGuardando] = useState(false);
   const [clientes, setClientes] = useState<Customer[]>([]);
   const [clienteId, setClienteId] = useState('');
+  const stockDisponible = (prod: Product) => (Number.isFinite(prod.stock) ? prod.stock : Number.MAX_SAFE_INTEGER);
 
   const cargarCatalogo = async () => {
     setCargando(true);
@@ -33,10 +34,11 @@ export default function Ventas() {
     setCargandoClientes(true);
     try {
       const data = await window.hedelmia.listarClientes();
+      if (!Array.isArray(data)) throw new Error('Respuesta inválida de clientes.');
       setClientes(data);
     } catch (err) {
       console.error(err);
-      setError('No se pudieron cargar los clientes.');
+      setError(`No se pudieron cargar los clientes.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargandoClientes(false);
     }
@@ -55,7 +57,7 @@ export default function Ventas() {
     setCarrito((prev) => {
       const existe = prev.find((p) => p.id === id);
       const nuevaCantidad = (existe?.qty ?? 0) + 1;
-      if (nuevaCantidad > prod.stock) {
+      if (nuevaCantidad > stockDisponible(prod)) {
         setError(`Stock insuficiente para ${prod.sabor?.nombre ?? prod.presentacion}`);
         return prev;
       }
@@ -73,7 +75,7 @@ export default function Ventas() {
         .map((p) => {
           if (p.id !== id) return p;
           const nuevaCantidad = Math.max(0, p.qty + delta);
-          if (nuevaCantidad > prod.stock) {
+          if (nuevaCantidad > stockDisponible(prod)) {
             setError(`Stock insuficiente para ${prod.sabor?.nombre ?? prod.presentacion}`);
             return p;
           }
@@ -96,7 +98,7 @@ export default function Ventas() {
     try {
       const faltante = carrito.find((item) => {
         const prod = productos.find((p) => p.id === item.id);
-        return !prod || item.qty > prod.stock;
+        return !prod || item.qty > stockDisponible(prod);
       });
       if (faltante) {
         setError('No puedes vender más de lo disponible en stock.');

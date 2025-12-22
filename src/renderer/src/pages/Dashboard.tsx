@@ -12,6 +12,34 @@ const money = (value: number) =>
     minimumFractionDigits: 2
   });
 
+const normalizarDashboard = (payload: Partial<DashboardSummary> & { ventasDia?: number }): DashboardSummary => {
+  const ventasDia = typeof payload.ventasDia === 'number' ? payload.ventasDia : payload.kpis?.ventasDia ?? 0;
+  const refrisAsignados = payload.kpis?.refrisAsignados ?? 0;
+  const refrisDisponibles = payload.kpis?.refrisDisponibles ?? 0;
+
+  return {
+    kpis: {
+      cajaDia: payload.kpis?.cajaDia ?? 0,
+      ventasDia,
+      clientesConAdeudo: payload.kpis?.clientesConAdeudo ?? 0,
+      refrisAsignados,
+      refrisDisponibles
+    },
+    tablas: {
+      ultimasVentas: payload.tablas?.ultimasVentas ?? [],
+      clientesSaldo: payload.tablas?.clientesSaldo ?? [],
+      inventarioBajo: payload.tablas?.inventarioBajo ?? []
+    },
+    graficas: {
+      ingresosVsEgresos: payload.graficas?.ingresosVsEgresos ?? [],
+      refrisAsignadosVsLibres: payload.graficas?.refrisAsignadosVsLibres ?? [
+        { label: 'Asignados', valor: refrisAsignados },
+        { label: 'Disponibles', valor: refrisDisponibles }
+      ]
+    }
+  };
+};
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -22,10 +50,10 @@ export default function Dashboard() {
     setError('');
     try {
       const response = await window.hedelmia.obtenerDashboard();
-      setData(response);
+      setData(normalizarDashboard(response));
     } catch (err) {
       console.error(err);
-      setError('No se pudo cargar el dashboard');
+      setError(`No se pudo cargar el dashboard.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargando(false);
     }
