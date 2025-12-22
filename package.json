@@ -11,7 +11,7 @@
     "build:renderer": "cd src/renderer && vite build",
     "build:main": "tsc -p tsconfig.main.json",
     "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
-    "dist": "electron-builder"
+    "dist": "npm run build && electron-builder"
   },
 
   "dependencies": {
