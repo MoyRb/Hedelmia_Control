@@ -854,7 +854,12 @@ safeHandle(
         serie: data.serie,
         estado: data.estado
       },
-      include: { asignaciones: true }
+      include: {
+        asignaciones: {
+          include: { customer: true },
+          orderBy: { entregadoEn: 'desc' }
+        }
+      }
     })
   }
 )
@@ -866,7 +871,12 @@ safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
   return prisma.fridgeAsset.update({
     where: { id: refri.id },
     data: { estado: nuevoEstado },
-    include: { asignaciones: true }
+    include: {
+      asignaciones: {
+        include: { customer: true },
+        orderBy: { entregadoEn: 'desc' }
+      }
+    }
   })
 })
 
@@ -1081,12 +1091,6 @@ safeHandle(
   }
 )
 
-safeHandle('backup:export', async (_event, destino: string) => {
-  fs.mkdirSync(path.dirname(destino), { recursive: true })
-  fs.copyFileSync(dbPath, destino)
-  return { ok: true }
-})
-
 safeHandle('refri:listar', async () => {
   const prisma = getPrisma()
   return prisma.fridgeAsset.findMany({
@@ -1099,129 +1103,6 @@ safeHandle('refri:listar', async () => {
     }
   })
 })
-
-safeHandle('refris:listar', async () => {
-  const prisma = getPrisma()
-  return prisma.fridgeAsset.findMany({
-    include: {
-      asignaciones: true,
-      visitas: true
-    }
-  })
-})
-
-safeHandle('refris:listar', async () => {
-  const prisma = getPrisma()
-  return prisma.fridgeAsset.findMany({
-    include: {
-      asignaciones: true,
-      visitas: true
-    }
-  })
-})
-
-safeHandle('refris:listarDisponibles', async () => {
-  const prisma = getPrisma()
-  return prisma.fridgeAsset.findMany({
-    where: {
-      estado: 'activo',
-      asignaciones: { none: { fechaFin: null } }
-    }
-  })
-})
-
-safeHandle('refris:crear', async (_event, data: { modelo: string; serie: string; estado?: string }) => {
-  const prisma = getPrisma()
-  return prisma.fridgeAsset.create({
-    data: {
-      modelo: data.modelo,
-      serie: data.serie,
-      estado: data.estado ?? 'activo'
-    }
-  })
-})
-
-safeHandle(
-  'refris:actualizar',
-  async (_event, data: { id: number; modelo?: string; serie?: string; estado?: string }) => {
-    const prisma = getPrisma()
-    return prisma.fridgeAsset.update({
-      where: { id: data.id },
-      data: {
-        modelo: data.modelo,
-        serie: data.serie,
-        estado: data.estado
-      }
-    })
-  }
-)
-
-safeHandle('refris:toggleEstado', async (_event, data: { id: number }) => {
-  const prisma = getPrisma()
-  const actual = await prisma.fridgeAsset.findUnique({ where: { id: data.id } })
-  if (!actual) throw new Error('Refri no encontrado')
-  const estado = actual.estado === 'activo' ? 'inactivo' : 'activo'
-  return prisma.fridgeAsset.update({
-    where: { id: data.id },
-    data: { estado }
-  })
-})
-
-safeHandle('ventas:list', async () => {
-  const prisma = getPrisma()
-  return prisma.sale.findMany({
-    orderBy: { fecha: 'desc' },
-    include: {
-      items: true
-    }
-  })
-})
-
-safeHandle(
-  'ventas:crear',
-  async (
-    _event,
-    data: { items: { productId: number; cantidad: number }[]; metodo: string; cajeroId?: number }
-  ) => {
-    const prisma = getPrisma()
-    return crearVenta(prisma, {
-      items: data.items,
-      pagoMetodo: data.metodo,
-      cajeroId: data.cajeroId
-    })
-  }
-)
-
-safeHandle(
-  'pos:venta',
-  async (_event, data: { items: { productId: number; cantidad: number }[]; customerId?: number | null; cashBoxId?: number | null }) => {
-    const prisma = getPrisma()
-    const venta = await crearVenta(prisma, {
-      items: data.items,
-      pagoMetodo: 'efectivo'
-    })
-
-    if (data.cashBoxId) {
-      await prisma.cashMovement.create({
-        data: {
-          cashBoxId: data.cashBoxId,
-          tipo: 'ingreso',
-          concepto: `Venta POS ${venta.folio}`,
-          monto: venta.total
-        }
-      })
-    }
-
-    if (data.customerId) {
-      await prisma.customer.update({
-        where: { id: data.customerId },
-        data: { saldo: { increment: venta.total } }
-      })
-    }
-
-    return { saleId: venta.id, folio: venta.folio, total: venta.total, customerId: data.customerId ?? null }
-  }
-)
 
 /* =========================================================
    IPC HANDLERS – STOCK

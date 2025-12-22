@@ -16,10 +16,17 @@ export default function Ventas() {
 
   const cargarCatalogo = async () => {
     setCargando(true);
-    const data = await window.hedelmia.listarCatalogo();
-    setProductos(data.productos);
-    setSabores(data.sabores);
-    setCargando(false);
+    setError('');
+    try {
+      const data = await window.hedelmia.listarCatalogo();
+      setProductos(data.productos);
+      setSabores(data.sabores);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudo cargar el catálogo de productos.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   const cargarClientes = async () => {
@@ -27,6 +34,9 @@ export default function Ventas() {
     try {
       const data = await window.hedelmia.listarClientes();
       setClientes(data);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar los clientes.');
     } finally {
       setCargandoClientes(false);
     }
@@ -46,7 +56,7 @@ export default function Ventas() {
       const existe = prev.find((p) => p.id === id);
       const nuevaCantidad = (existe?.qty ?? 0) + 1;
       if (nuevaCantidad > prod.stock) {
-        setError(`Stock insuficiente para ${prod.sabor.nombre}`);
+        setError(`Stock insuficiente para ${prod.sabor?.nombre ?? prod.presentacion}`);
         return prev;
       }
       if (existe) return prev.map((p) => (p.id === id ? { ...p, qty: nuevaCantidad } : p));
@@ -64,7 +74,7 @@ export default function Ventas() {
           if (p.id !== id) return p;
           const nuevaCantidad = Math.max(0, p.qty + delta);
           if (nuevaCantidad > prod.stock) {
-            setError(`Stock insuficiente para ${prod.sabor.nombre}`);
+            setError(`Stock insuficiente para ${prod.sabor?.nombre ?? prod.presentacion}`);
             return p;
           }
           return { ...p, qty: nuevaCantidad };
@@ -125,11 +135,12 @@ export default function Ventas() {
                 key={p.id}
                 onClick={() => agregar(p.id)}
                 disabled={p.stock <= 0}
+                type="button"
                 className={`rounded-xl border border-primary/60 bg-white/80 hover:-translate-y-0.5 transition shadow-sm p-3 text-left ${
                   p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <p className="font-semibold">{p.sabor.nombre}</p>
+                <p className="font-semibold">{p.sabor?.nombre ?? p.presentacion}</p>
                 <p className="text-xs text-gray-600 capitalize">{p.tipo.nombre}</p>
                 <p className="text-sm">${p.precio.toFixed(2)}</p>
                 <p className="text-xs text-gray-500">Stock: {p.stock}</p>
@@ -172,11 +183,11 @@ export default function Ventas() {
                   <p className="text-xs text-gray-600 capitalize">{prod.tipo.nombre}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="p-1" onClick={() => cambiar(item.id, -1)}>
+                  <button className="p-1" onClick={() => cambiar(item.id, -1)} type="button">
                     <Minus size={16} />
                   </button>
                   <span>{item.qty}</span>
-                  <button className="p-1" onClick={() => cambiar(item.id, 1)}>
+                  <button className="p-1" onClick={() => cambiar(item.id, 1)} type="button">
                     <Plus size={16} />
                   </button>
                   <p className="w-16 text-right font-semibold">${(prod.precio * item.qty).toFixed(2)}</p>
@@ -200,6 +211,7 @@ export default function Ventas() {
             className="mt-3 w-full bg-primary text-black font-semibold py-2 rounded-lg hover:opacity-90"
             onClick={cobrar}
             disabled={!carrito.length || guardando}
+            type="button"
           >
             Cobrar / Guardar venta
           </button>
