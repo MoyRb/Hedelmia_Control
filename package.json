@@ -9,8 +9,9 @@
   "scripts": {
     "build:prisma": "prisma generate",
     "build:renderer": "cd src/renderer && vite build",
+    "build:preload": "tsc -p tsconfig.preload.json",
     "build:main": "tsc -p tsconfig.main.json",
-    "build": "npm run build:prisma && npm run build:renderer && npm run build:main",
+    "build": "npm run build:prisma && npm run build:renderer && npm run build:preload && npm run build:main",
     "dist": "npm run build && electron-builder"
   },
 

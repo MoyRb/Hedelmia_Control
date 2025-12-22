@@ -118,9 +118,7 @@ const safeHandle = (
   channel: string,
   fn: (event: Electron.IpcMainInvokeEvent, ...args: any[]) => Promise<any>
 ) => {
-  if (ipcMain.listenerCount(channel) > 0) {
-    ipcMain.removeHandler(channel)
-  }
+  ipcMain.removeHandler(channel)
   ipcMain.handle(channel, async (event, ...args) => {
     try {
       return await fn(event, ...args)
@@ -695,43 +693,6 @@ safeHandle(
     })
   }
 )
-
-safeHandle('asignaciones:listarPorCliente', async (_event, customerId: number) => {
-  const prisma = getPrisma()
-  return prisma.fridgeAssignment.findMany({
-    where: { customerId },
-    include: { asset: true }
-  })
-})
-
-safeHandle(
-  'asignaciones:crear',
-  async (
-    _event,
-    data: { customerId: number; assetId: number; ubicacion: string; entregadoEn: string; deposito?: number; renta?: number }
-  ) => {
-    const prisma = getPrisma()
-    return prisma.fridgeAssignment.create({
-      data: {
-        customerId: data.customerId,
-        assetId: data.assetId,
-        ubicacion: data.ubicacion,
-        entregadoEn: new Date(data.entregadoEn),
-        deposito: data.deposito ?? null,
-        renta: data.renta ?? null
-      },
-      include: { asset: true }
-    })
-  }
-)
-
-safeHandle('asignaciones:eliminar', async (_event, id: number) => {
-  const prisma = getPrisma()
-  await prisma.fridgeAssignment.delete({
-    where: { id }
-  })
-  return { ok: true }
-})
 
 /* =========================================================
    IPC HANDLERS – CAJAS
