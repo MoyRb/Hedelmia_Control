@@ -2,10 +2,12 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { createRequire } from 'module'
+import { fileURLToPath } from 'url'
 
 /* =========================================================
-   ESM → CommonJS bridge (NECESARIO)
+   ESM PATHS + CommonJS bridge (NECESARIO)
 ========================================================= */
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const cjsRequire = createRequire(import.meta.url)
 
 /* =========================================================
@@ -27,6 +29,27 @@ function getPrisma(): PrismaClient {
    APP CONFIG
 ========================================================= */
 const isDev = !app.isPackaged
+
+/* =========================================================
+   PRISMA ENGINE PATH (asar-safe)
+========================================================= */
+if (!isDev) {
+  const prismaEngineDir = path.join(
+    process.resourcesPath,
+    'app.asar.unpacked',
+    'node_modules',
+    '.prisma',
+    'client'
+  )
+  if (fs.existsSync(prismaEngineDir)) {
+    const engineFile = fs
+      .readdirSync(prismaEngineDir)
+      .find((file) => file.startsWith('libquery_engine') || file.startsWith('query_engine'))
+    if (engineFile) {
+      process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(prismaEngineDir, engineFile)
+    }
+  }
+}
 
 /* =========================================================
    DATABASE SETUP (SQLite portable)
@@ -72,11 +95,16 @@ const createWindow = async () => {
     width: 1280,
     height: 800,
     backgroundColor: '#fcf2e4',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+
+  win.once('ready-to-show', () => {
+    win.show()
   })
 
   if (isDev) {
