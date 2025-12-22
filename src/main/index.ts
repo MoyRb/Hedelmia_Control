@@ -142,6 +142,42 @@ if (!fs.existsSync(dbPath)) {
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ?? `file:${dbPath}`
 
+type SqliteColumnInfo = {
+  name: string
+}
+
+const columnExists = async (
+  prismaClient: PrismaClient,
+  table: string,
+  column: string
+): Promise<boolean> => {
+  const rows = await prismaClient.$queryRawUnsafe<SqliteColumnInfo[]>(
+    `PRAGMA table_info('${table}')`
+  )
+  return rows.some((row) => row.name === column)
+}
+
+const ensureColumn = async (
+  prismaClient: PrismaClient,
+  table: string,
+  column: string,
+  definition: string
+) => {
+  const exists = await columnExists(prismaClient, table, column)
+  if (exists) return
+
+  console.warn(`[db] Agregando columna faltante ${table}.${column}`)
+  await prismaClient.$executeRawUnsafe(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
+}
+
+const ensureDatabaseSchema = async () => {
+  const prismaClient = getPrisma()
+
+  await ensureColumn(prismaClient, 'ProductType', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
+  await ensureColumn(prismaClient, 'Flavor', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
+  await ensureColumn(prismaClient, 'Product', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
+}
+
 /* =========================================================
    IPC SAFE HANDLER
 ========================================================= */
@@ -191,7 +227,10 @@ const createWindow = async () => {
 /* =========================================================
    APP LIFECYCLE
 ========================================================= */
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  await ensureDatabaseSchema()
+  await createWindow()
+})
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
