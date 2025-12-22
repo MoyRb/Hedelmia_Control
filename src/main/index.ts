@@ -58,6 +58,19 @@ async function ensureDefaultCashBoxes(prismaClient: PrismaClient) {
 ========================================================= */
 const isDev = !app.isPackaged
 
+const resolvePreloadPath = () => {
+  const candidates = [
+    path.join(__dirname, '../preload/index.js'),
+    path.join(app.getAppPath(), 'dist', 'preload', 'index.js')
+  ]
+  const found = candidates.find((candidate) => fs.existsSync(candidate))
+  if (!found) {
+    console.error('[preload] No se encontró el archivo preload.', { candidates })
+    return candidates[0]
+  }
+  return found
+}
+
 /* =========================================================
    PRISMA ENGINE PATH (asar-safe)
 ========================================================= */
@@ -125,7 +138,7 @@ const createWindow = async () => {
     backgroundColor: '#fcf2e4',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: resolvePreloadPath(),
       contextIsolation: true,
       nodeIntegration: false
     }
