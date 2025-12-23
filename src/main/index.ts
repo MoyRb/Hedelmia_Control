@@ -88,6 +88,15 @@ async function ensureDefaultCashBoxes(prismaClient: PrismaClient) {
    APP CONFIG
 ========================================================= */
 const isDev = !app.isPackaged
+const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] unhandledRejection', reason)
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('[main] uncaughtException', error)
+})
 
 const resolvePreloadPath = () => {
   const candidates = [
@@ -224,15 +233,34 @@ const createWindow = async () => {
     }
   })
 
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error('[renderer] did-fail-load', { errorCode, errorDescription, validatedURL })
+    if (!win.isVisible()) {
+      win.show()
+    }
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[renderer] render-process-gone', details)
+  })
+
   win.once('ready-to-show', () => {
     win.show()
   })
 
   if (isDev) {
-    await win.loadURL('http://localhost:5173')
+    try {
+      await win.loadURL(devServerUrl)
+    } catch (error) {
+      console.error('[renderer] loadURL failed', error)
+    }
     win.webContents.openDevTools()
   } else {
-    await win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    try {
+      await win.loadFile(path.join(__dirname, '../renderer/index.html'))
+    } catch (error) {
+      console.error('[renderer] loadFile failed', error)
+    }
   }
 }
 
