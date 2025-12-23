@@ -13,27 +13,34 @@ const money = (value: number) =>
   });
 
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardSummary | null>(null);
+  const [kpis, setKpis] = useState<DashboardSummary['kpis'] | null>(null);
+  const [tablas, setTablas] = useState<DashboardSummary['tablas'] | null>(null);
+  const [graficas, setGraficas] = useState<DashboardSummary['graficas'] | null>(null);
   const [cargando, setCargando] = useState(true);
 
   const cargar = async () => {
     setCargando(true);
-    try {
-      const response = await window.hedelmia.obtenerDashboard();
-      setData(response);
-    } finally {
-      setCargando(false);
-    }
+
+    const [kpisResult, tablasResult, graficasResult] = await Promise.allSettled([
+      window.hedelmia.obtenerDashboard().then((res) => res.kpis),
+      window.hedelmia.obtenerDashboard().then((res) => res.tablas),
+      window.hedelmia.obtenerDashboard().then((res) => res.graficas)
+    ]);
+
+    setKpis((prev) => (kpisResult.status === 'fulfilled' ? kpisResult.value : prev));
+    setTablas((prev) => (tablasResult.status === 'fulfilled' ? tablasResult.value : prev));
+    setGraficas((prev) => (graficasResult.status === 'fulfilled' ? graficasResult.value : prev));
+
+    setCargando(false);
   };
 
   useEffect(() => {
-    cargar();
+    void cargar();
   }, []);
 
-  const kpis = data?.kpis;
-
-  const refrisChart = useMemo(() => (data ? data.graficas.refrisAsignadosVsLibres : []), [data]);
-  const flujoChart = useMemo(() => (data ? data.graficas.ingresosVsEgresos : []), [data]);
+  const refrisChart = useMemo(() => (graficas ? graficas.refrisAsignadosVsLibres : []), [graficas]);
+  const flujoChart = useMemo(() => (graficas ? graficas.ingresosVsEgresos : []), [graficas]);
+  const tieneContenido = Boolean(kpis || tablas || graficas);
 
   return (
     <div className="space-y-4">
@@ -60,7 +67,7 @@ export default function Dashboard() {
 
       {cargando ? (
         <p className="text-sm text-gray-600">Cargando información...</p>
-      ) : data ? (
+      ) : tieneContenido ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="card p-4 lg:col-span-2">
@@ -106,26 +113,38 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <DataCard title="Últimas ventas POS" subtitle="Folio, método y total" items={data.tablas.ultimasVentas.map((venta) => ({
-              primary: venta.folio,
-              secondary: new Date(venta.fecha).toLocaleString('es-MX'),
-              badge: venta.pagoMetodo,
-              value: money(venta.total)
-            }))} />
+            <DataCard
+              title="Últimas ventas POS"
+              subtitle="Folio, método y total"
+              items={(tablas?.ultimasVentas ?? []).map((venta) => ({
+                primary: venta.folio,
+                secondary: new Date(venta.fecha).toLocaleString('es-MX'),
+                badge: venta.pagoMetodo,
+                value: money(venta.total)
+              }))}
+            />
 
-            <DataCard title="Clientes con mayor saldo" subtitle="Top 5" items={data.tablas.clientesSaldo.map((cliente) => ({
-              primary: cliente.nombre,
-              secondary: cliente.telefono ?? 'Sin teléfono',
-              badge: cliente.estado,
-              value: money(cliente.saldo)
-            }))} />
+            <DataCard
+              title="Clientes con mayor saldo"
+              subtitle="Top 5"
+              items={(tablas?.clientesSaldo ?? []).map((cliente) => ({
+                primary: cliente.nombre,
+                secondary: cliente.telefono ?? 'Sin teléfono',
+                badge: cliente.estado,
+                value: money(cliente.saldo)
+              }))}
+            />
 
-            <DataCard title="Inventario bajo" subtitle="Menor stock" items={data.tablas.inventarioBajo.map((producto) => ({
-              primary: producto.sabor.nombre,
-              secondary: producto.tipo.nombre,
-              badge: producto.presentacion,
-              value: producto.stock
-            }))} />
+            <DataCard
+              title="Inventario bajo"
+              subtitle="Menor stock"
+              items={(tablas?.inventarioBajo ?? []).map((producto) => ({
+                primary: producto.sabor.nombre,
+                secondary: producto.tipo.nombre,
+                badge: producto.presentacion,
+                value: producto.stock
+              }))}
+            />
           </div>
         </div>
       ) : (
