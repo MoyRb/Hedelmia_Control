@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Customer, FridgeAsset, FridgeAssignment } from '../../../preload';
+import { useClientesContext } from '../state/ClientesContext';
 
 type ClienteAsignacion = FridgeAssignment & { asset: FridgeAsset };
 
@@ -20,8 +21,7 @@ const emptyForm: ClienteForm = {
 };
 
 export default function Clientes() {
-  const [clientes, setClientes] = useState<Customer[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const { clientes, cargando, cargarClientes, error: errorClientes, limpiarError } = useClientesContext();
   const [mostrandoModal, setMostrandoModal] = useState(false);
   const [editando, setEditando] = useState<Customer | null>(null);
   const [form, setForm] = useState<ClienteForm>(emptyForm);
@@ -47,16 +47,6 @@ export default function Clientes() {
     deposito: '',
     renta: ''
   });
-
-  const cargarClientes = useCallback(async () => {
-    setCargando(true);
-    try {
-      const data = await window.hedelmia.listarClientes();
-      setClientes([...data]);
-    } finally {
-      setCargando(false);
-    }
-  }, []);
 
   const cargarAsignacionesCliente = async (clienteId: number) => {
     setCargandoAsignaciones(true);
@@ -88,21 +78,13 @@ export default function Clientes() {
   };
 
   useEffect(() => {
-    cargarClientes();
-  }, [cargarClientes]);
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      if (window.location.hash.endsWith('/clientes') || window.location.hash === '#/clientes') {
-        cargarClientes();
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    cargarClientes().catch(() => {
+      setError('No se pudieron cargar los clientes.');
+    });
   }, [cargarClientes]);
 
   const abrirNuevo = () => {
+    limpiarError();
     setEditando(null);
     setForm(emptyForm);
     setAsignaciones([]);
@@ -112,6 +94,7 @@ export default function Clientes() {
   };
 
   const abrirEditar = (cliente: Customer) => {
+    limpiarError();
     setEditando(cliente);
     setForm({
       nombre: cliente.nombre,
@@ -165,17 +148,6 @@ export default function Clientes() {
           saldo,
           estado: form.estado
         });
-        const clienteActualizado: Customer = {
-          ...editando,
-          nombre: form.nombre.trim(),
-          telefono: form.telefono.trim() || undefined,
-          limite,
-          saldo,
-          estado: form.estado
-        };
-        setClientes((prev) => prev.map((c) => (c.id === clienteActualizado.id ? clienteActualizado : c)));
-        setEditando(clienteActualizado);
-        setMensaje('Cliente actualizado correctamente.');
       } else {
         await window.hedelmia.crearCliente({
           nombre: form.nombre.trim(),
@@ -184,10 +156,14 @@ export default function Clientes() {
           saldo,
           estado: form.estado
         });
-        setMensaje('Cliente creado correctamente.');
       }
+      const clientesActualizados = await cargarClientes();
+      if (editando && clientesActualizados) {
+        const clienteRefrescado = clientesActualizados.find((c) => c.id === editando.id) ?? null;
+        setEditando(clienteRefrescado);
+      }
+      setMensaje(editando ? 'Cliente actualizado correctamente.' : 'Cliente creado correctamente.');
       cerrarModal();
-      await cargarClientes();
     } catch (err) {
       console.error(err);
       setError('Ocurrió un error al guardar el cliente.');
@@ -223,13 +199,13 @@ export default function Clientes() {
         deposito: isNaN(deposito ?? NaN) ? undefined : deposito,
         renta: isNaN(renta ?? NaN) ? undefined : renta
       });
+      await Promise.all([cargarAsignacionesCliente(editando.id), cargarClientes()]);
       if (nuevaAsignacion.customer) {
-        const nuevoSaldo = nuevaAsignacion.customer.saldo;
-        setClientes((prev) => prev.map((c) => (c.id === nuevaAsignacion.customerId ? { ...c, saldo: nuevoSaldo } : c)));
-        setEditando((prev) => (prev && prev.id === nuevaAsignacion.customerId ? { ...prev, saldo: nuevoSaldo } : prev));
-        setForm((prev) => ({ ...prev, saldo: nuevoSaldo.toString() }));
+        setEditando((prev) =>
+          prev && prev.id === nuevaAsignacion.customerId ? { ...prev, saldo: nuevaAsignacion.customer!.saldo } : prev
+        );
+        setForm((prev) => ({ ...prev, saldo: nuevaAsignacion.customer.saldo.toString() }));
       }
-      await cargarAsignacionesCliente(editando.id);
       setMostrandoModalAsignacion(false);
     } catch (err) {
       console.error(err);
@@ -274,7 +250,7 @@ export default function Clientes() {
     setError('');
     try {
       await window.hedelmia.toggleClienteEstado({ id: cliente.id, estado: nuevoEstado });
-      setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, estado: nuevoEstado } : c)));
+      await cargarClientes();
     } catch (err) {
       console.error(err);
       setError('No se pudo actualizar el estado del cliente.');
@@ -283,6 +259,7 @@ export default function Clientes() {
 
   const asignacionesActivas = useMemo(() => asignaciones.filter((a) => !a.fechaFin), [asignaciones]);
   const historialAsignaciones = useMemo(() => asignaciones.filter((a) => a.fechaFin), [asignaciones]);
+  const errorActivo = error || errorClientes;
 
   return (
     <div className="space-y-4">
@@ -294,7 +271,7 @@ export default function Clientes() {
       </div>
 
       {mensaje && <p className="text-sm text-green-700">{mensaje}</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {errorActivo && <p className="text-sm text-red-600">{errorActivo}</p>}
 
       <div className="card p-4">
         {cargando ? (

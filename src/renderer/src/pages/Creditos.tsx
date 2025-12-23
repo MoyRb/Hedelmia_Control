@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Customer, PromissoryNote, PromissoryPayment } from '../../../preload';
+import { useClientesContext } from '../state/ClientesContext';
 
 type PagareConAbonos = PromissoryNote & { abonos?: PromissoryPayment[] };
 
 export default function Creditos() {
-  const [clientes, setClientes] = useState<Customer[]>([]);
+  const { clientes, cargando: cargandoClientes, cargarClientes, error: errorClientes } = useClientesContext();
   const [pagares, setPagares] = useState<PagareConAbonos[]>([]);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Customer | null>(null);
   const [pagareSeleccionado, setPagareSeleccionado] = useState<PagareConAbonos | null>(null);
   const [pagareParaAbono, setPagareParaAbono] = useState<PagareConAbonos | null>(null);
-  const [cargandoClientes, setCargandoClientes] = useState(true);
   const [cargandoPagares, setCargandoPagares] = useState(false);
   const [mostrandoModal, setMostrandoModal] = useState(false);
   const [mostrandoModalAbono, setMostrandoModalAbono] = useState(false);
@@ -19,24 +19,6 @@ export default function Creditos() {
   const [mensaje, setMensaje] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [guardandoAbono, setGuardandoAbono] = useState(false);
-
-  const cargarClientes = async () => {
-    setCargandoClientes(true);
-    setError('');
-    try {
-      const data = await window.hedelmia.listarClientesConSaldo();
-      setClientes(data);
-      if (clienteSeleccionado) {
-        const actualizado = data.find((c) => c.id === clienteSeleccionado.id) ?? null;
-        setClienteSeleccionado(actualizado);
-      }
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron cargar los clientes con saldo.');
-    } finally {
-      setCargandoClientes(false);
-    }
-  };
 
   const cargarPagares = async (clienteId: number) => {
     setCargandoPagares(true);
@@ -62,11 +44,28 @@ export default function Creditos() {
   };
 
   useEffect(() => {
-    cargarClientes();
-  }, []);
+    cargarClientes().catch(() => setError('No se pudieron cargar los clientes con saldo.'));
+  }, [cargarClientes]);
+
+  useEffect(() => {
+    if (!clienteSeleccionado) return;
+    const actualizado = clientes.find((c) => c.id === clienteSeleccionado.id);
+    if (!actualizado) {
+      setClienteSeleccionado(null);
+      setPagares([]);
+      setPagareSeleccionado(null);
+      return;
+    }
+    if (actualizado !== clienteSeleccionado) {
+      setClienteSeleccionado(actualizado);
+    }
+  }, [clienteSeleccionado, clientes]);
+
+  const clientesConSaldo = useMemo(() => clientes.filter((c) => c.saldo > 0), [clientes]);
 
   const seleccionarCliente = (cliente: Customer) => {
-    setClienteSeleccionado(cliente);
+    const actualizado = clientes.find((c) => c.id === cliente.id) ?? cliente;
+    setClienteSeleccionado(actualizado);
     setMensaje('');
     setPagares([]);
     setPagareSeleccionado(null);
@@ -169,12 +168,13 @@ export default function Creditos() {
 
   const pagaresVigentes = useMemo(() => pagares.filter((p) => p.estado === 'vigente'), [pagares]);
   const pagaresHistoricos = useMemo(() => pagares.filter((p) => p.estado !== 'vigente'), [pagares]);
+  const errorActivo = error || errorClientes;
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Créditos y pagarés</h2>
 
-      {error && <div className="rounded bg-red-100 text-red-700 px-3 py-2 text-sm">{error}</div>}
+      {errorActivo && <div className="rounded bg-red-100 text-red-700 px-3 py-2 text-sm">{errorActivo}</div>}
       {mensaje && <div className="rounded bg-emerald-100 text-emerald-700 px-3 py-2 text-sm">{mensaje}</div>}
 
       <div className="card p-4 space-y-3">
@@ -194,14 +194,14 @@ export default function Creditos() {
               </tr>
             </thead>
             <tbody>
-              {clientes.length === 0 && !cargandoClientes && (
+              {clientesConSaldo.length === 0 && !cargandoClientes && (
                 <tr>
                   <td className="py-2 text-gray-500" colSpan={5}>
                     No hay clientes con saldo pendiente.
                   </td>
                 </tr>
               )}
-              {clientes.map((c) => (
+              {clientesConSaldo.map((c) => (
                 <tr key={c.id} className="border-b border-secondary/50">
                   <td className="py-2">{c.nombre}</td>
                   <td>${c.saldo.toFixed(2)}</td>
