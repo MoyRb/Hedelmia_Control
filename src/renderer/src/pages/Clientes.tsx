@@ -81,6 +81,9 @@ export default function Clientes() {
         entregadoEn: new Date().toISOString().slice(0, 10)
       }));
       setMostrandoModalAsignacion(true);
+    } catch (err) {
+      console.error(err);
+      setError('No se pudieron cargar los refris disponibles.');
     }
   };
 
