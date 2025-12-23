@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Customer, FridgeAsset, FridgeAssignment } from '../../../preload';
 
 type ClienteAsignacion = FridgeAssignment & { asset: FridgeAsset };
@@ -48,7 +48,7 @@ export default function Clientes() {
     renta: ''
   });
 
-  const cargarClientes = async () => {
+  const cargarClientes = useCallback(async () => {
     setCargando(true);
     try {
       const data = await window.hedelmia.listarClientes();
@@ -56,7 +56,7 @@ export default function Clientes() {
     } finally {
       setCargando(false);
     }
-  };
+  }, []);
 
   const cargarAsignacionesCliente = async (clienteId: number) => {
     setCargandoAsignaciones(true);
@@ -89,7 +89,18 @@ export default function Clientes() {
 
   useEffect(() => {
     cargarClientes();
-  }, []);
+  }, [cargarClientes]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash.endsWith('/clientes') || window.location.hash === '#/clientes') {
+        cargarClientes();
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [cargarClientes]);
 
   const abrirNuevo = () => {
     setEditando(null);
@@ -156,18 +167,17 @@ export default function Clientes() {
         });
         setMensaje('Cliente actualizado correctamente.');
       } else {
-        const nuevoCliente = await window.hedelmia.crearCliente({
+        await window.hedelmia.crearCliente({
           nombre: form.nombre.trim(),
           telefono: form.telefono.trim() || undefined,
           limite,
           saldo,
           estado: form.estado
         });
-        setClientes((prev) => [...prev, nuevoCliente]);
         setMensaje('Cliente creado correctamente.');
       }
       cerrarModal();
-      cargarClientes();
+      await cargarClientes();
     } catch (err) {
       console.error(err);
       setError('Ocurrió un error al guardar el cliente.');
