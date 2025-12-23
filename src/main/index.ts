@@ -313,6 +313,12 @@ const createWindow = async (): Promise<BrowserWindow> => {
 /* =========================================================
    APP LIFECYCLE
 ========================================================= */
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-gpu-compositing')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('no-sandbox')
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!gotSingleInstanceLock) {
