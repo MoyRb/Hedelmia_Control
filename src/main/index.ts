@@ -111,6 +111,14 @@ const resolvePreloadPath = () => {
   return found
 }
 
+const resolveRendererPath = () => {
+  const candidate = path.join(__dirname, '../renderer/index.html')
+  if (!fs.existsSync(candidate)) {
+    console.error('[renderer] No se encontró index.html.', { candidate })
+  }
+  return candidate
+}
+
 /* =========================================================
    PRISMA ENGINE PATH (asar-safe)
 ========================================================= */
@@ -257,7 +265,7 @@ const createWindow = async () => {
     win.webContents.openDevTools()
   } else {
     try {
-      await win.loadFile(path.join(__dirname, '../renderer/index.html'))
+      await win.loadFile(resolveRendererPath())
     } catch (error) {
       console.error('[renderer] loadFile failed', error)
     }
