@@ -21,6 +21,17 @@ const isClienteValido = (value: unknown): value is Customer => {
   );
 };
 
+const normalizarRespuestaClientes = (respuesta: unknown): Customer[] | null => {
+  if (Array.isArray(respuesta)) return respuesta;
+  if (respuesta && typeof respuesta === 'object') {
+    const posibleObjeto = respuesta as Record<string, unknown>;
+    const candidatos = [posibleObjeto.data, posibleObjeto.clientes];
+    const encontrado = candidatos.find(Array.isArray);
+    if (encontrado) return encontrado as Customer[];
+  }
+  return null;
+};
+
 export type ClientesContextValue = {
   clientes: Customer[];
   cargando: boolean;
@@ -41,8 +52,10 @@ export function ClientesProvider({ children }: PropsWithChildren) {
     setCargando(true);
     const anteriores = clientesPrevios.current;
     try {
-      const data = await window.hedelmia.listarClientes();
-      if (!Array.isArray(data)) {
+      const respuesta = await window.hedelmia.listarClientes();
+      console.debug('[Clientes] Respuesta IPC listarClientes', respuesta);
+      const data = normalizarRespuestaClientes(respuesta);
+      if (!data) {
         throw new Error('Respuesta inválida al listar clientes.');
       }
       const clientesValidados = data.filter(isClienteValido);
