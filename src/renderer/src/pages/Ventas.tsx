@@ -128,10 +128,9 @@ export default function Ventas() {
               <button
                 key={p.id}
                 onClick={() => agregar(p.id)}
-                disabled={p.stock <= 0}
                 type="button"
                 className={`rounded-xl border border-primary/60 bg-white/80 hover:-translate-y-0.5 transition shadow-sm p-3 text-left ${
-                  p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  p.stock <= 0 ? 'opacity-50' : ''
                 }`}
               >
                 <p className="font-semibold">{p.sabor?.nombre ?? p.presentacion}</p>
