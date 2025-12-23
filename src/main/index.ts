@@ -105,8 +105,12 @@ const resolvePreloadPath = () => {
   ]
   const found = candidates.find((candidate) => fs.existsSync(candidate))
   if (!found) {
-    console.error('[preload] No se encontró el archivo preload.', { candidates })
-    return candidates[0]
+    const error = new Error('Preload file missing')
+    console.error('[preload] No se encontró el archivo preload.', {
+      candidates,
+      error
+    })
+    return undefined
   }
   return found
 }
@@ -114,7 +118,8 @@ const resolvePreloadPath = () => {
 const resolveRendererPath = () => {
   const candidate = path.join(__dirname, '../renderer/index.html')
   if (!fs.existsSync(candidate)) {
-    console.error('[renderer] No se encontró index.html.', { candidate })
+    const error = new Error('Renderer index.html missing')
+    console.error('[renderer] No se encontró index.html.', { candidate, error })
   }
   return candidate
 }
@@ -228,14 +233,33 @@ const safeHandle = (
 /* =========================================================
    WINDOW
 ========================================================= */
-const createWindow = async () => {
-  const win = new BrowserWindow({
+let mainWindow: BrowserWindow | null = null
+let creatingWindow: Promise<BrowserWindow> | null = null
+
+const createWindow = async (): Promise<BrowserWindow> => {
+  if (mainWindow) return mainWindow
+  if (creatingWindow) return creatingWindow
+
+  creatingWindow = (async () => {
+    const preloadPath = resolvePreloadPath()
+    if (!isDev) {
+      console.info('[main] Production paths', {
+        appPath: app.getAppPath(),
+        resourcesPath: process.resourcesPath,
+        preloadPath: preloadPath ?? null,
+        rendererPath: resolveRendererPath(),
+        userData: app.getPath('userData'),
+        dbPath
+      })
+    }
+
+    const win = new BrowserWindow({
     width: 1280,
     height: 800,
     backgroundColor: '#fcf2e4',
     show: false,
     webPreferences: {
-      preload: resolvePreloadPath(),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -270,18 +294,49 @@ const createWindow = async () => {
       console.error('[renderer] loadFile failed', error)
     }
   }
+
+    win.on('closed', () => {
+      mainWindow = null
+    })
+
+    mainWindow = win
+    return win
+  })()
+
+  try {
+    return await creatingWindow
+  } finally {
+    creatingWindow = null
+  }
 }
 
 /* =========================================================
    APP LIFECYCLE
 ========================================================= */
-app.whenReady().then(async () => {
-  await ensureDatabaseSchema()
-  await createWindow()
-})
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!gotSingleInstanceLock) {
+  console.error('[main] Another instance is running, quitting.')
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    } else {
+      void createWindow()
+    }
+  })
+
+  app.whenReady().then(async () => {
+    await ensureDatabaseSchema()
+    await createWindow()
+  })
+}
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  if (BrowserWindow.getAllWindows().length === 0) void createWindow()
 })
 
 app.on('window-all-closed', async () => {
