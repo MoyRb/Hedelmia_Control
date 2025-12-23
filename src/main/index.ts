@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { createRequire } from 'module'
@@ -16,8 +16,12 @@ const cjsRequire = createRequire(import.meta.url)
    PRISMA – Electron-safe lazy loader
 ========================================================= */
 import type { PrismaClient } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 let prisma: PrismaClient | undefined
+let databaseHealthy = true
+let lastDatabaseError: string | null = null
+let databaseDialogOpen = false
 
 const resolvePrismaClientEntry = () => {
   const appPath = app.getAppPath()
@@ -195,29 +199,142 @@ const tableExists = async (prismaClient: PrismaClient, table: string): Promise<b
   return rows.length > 0
 }
 
-const ensureDatabaseSchema = async () => {
+const markDatabaseIncompatible = (reason: string) => {
+  databaseHealthy = false
+  lastDatabaseError = reason
+}
+
+const assertDatabaseHealthy = () => {
+  if (!databaseHealthy) {
+    throw new Error(lastDatabaseError ?? 'Base de datos desactualizada. Reinicia la aplicación')
+  }
+}
+
+const checkDatabaseCompatibility = async (prismaClient: PrismaClient): Promise<string[]> => {
+  const missing: string[] = []
+
+  if (!(await tableExists(prismaClient, 'CustomerMovement'))) {
+    missing.push('CustomerMovement')
+  }
+
+  if (!(await columnExists(prismaClient, 'FridgeAssignment', 'fechaFin'))) {
+    missing.push('FridgeAssignment.fechaFin')
+  }
+
+  return missing
+}
+
+const resetDatabaseFromTemplate = async (): Promise<boolean> => {
+  try {
+    if (prisma) {
+      await prisma.$disconnect()
+      prisma = undefined
+    }
+
+    if (!fs.existsSync(templateDbPath)) {
+      console.error('[db] No se encontró base de datos plantilla', { templateDbPath })
+      return false
+    }
+
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+    fs.copyFileSync(templateDbPath, dbPath)
+
+    databaseHealthy = true
+    lastDatabaseError = null
+
+    return true
+  } catch (error) {
+    console.error('[db] Error reseteando base de datos', error)
+    return false
+  }
+}
+
+const promptDatabaseReset = async (missing: string[], reason: string): Promise<boolean> => {
+  if (databaseDialogOpen) return false
+  databaseDialogOpen = true
+
+  try {
+    const buttons = isDev ? ['Reset automático', 'Salir'] : ['Salir']
+
+    const { response } = await dialog.showMessageBox({
+      type: 'error',
+      buttons,
+      defaultId: 0,
+      cancelId: buttons.length - 1,
+      title: 'Base de datos desactualizada',
+      message: 'La base de datos no coincide con el esquema actual.',
+      detail: `${reason}\n\nElementos faltantes: ${missing.join(', ') || 'desconocidos.'}`,
+      noLink: true
+    })
+
+    if (isDev && response === 0) {
+      const resetOk = await resetDatabaseFromTemplate()
+      if (resetOk) {
+        const prismaClient = getPrisma()
+        const remainingIssues = await checkDatabaseCompatibility(prismaClient)
+        if (remainingIssues.length === 0) {
+          return true
+        }
+        markDatabaseIncompatible(
+          `La base se reseteó pero siguen faltando: ${remainingIssues.join(', ')}`
+        )
+      }
+    }
+  } finally {
+    databaseDialogOpen = false
+  }
+
+  app.quit()
+  return false
+}
+
+const handlePrismaError = async (error: unknown, channel?: string): Promise<string> => {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2021' || error.code === 'P2022') {
+      const reason = `Base de datos desactualizada (Prisma ${error.code}).`
+      markDatabaseIncompatible(reason)
+
+      try {
+        const issues = await checkDatabaseCompatibility(getPrisma())
+        await promptDatabaseReset(issues, reason)
+      } catch (err) {
+        console.error('[db] Error verificando compatibilidad tras excepción', err)
+      }
+
+      return reason
+    }
+  }
+
+  if (error instanceof Error) {
+    console.error(`[Prisma error${channel ? `:${channel}` : ''}]`, error)
+    return error.message
+  }
+
+  console.error(`[Prisma error${channel ? `:${channel}` : ''}]`, error)
+  return 'Error desconocido de base de datos'
+}
+
+const ensureDatabaseSchema = async (): Promise<boolean> => {
   try {
     const prismaClient = getPrisma()
+    const missing = await checkDatabaseCompatibility(prismaClient)
 
-    const missing: string[] = []
-
-    if (!(await tableExists(prismaClient, 'CustomerMovement'))) {
-      missing.push('CustomerMovement')
+    if (missing.length === 0) {
+      databaseHealthy = true
+      lastDatabaseError = null
+      return true
     }
 
-    if (!(await columnExists(prismaClient, 'FridgeAssignment', 'fechaFin'))) {
-      missing.push('FridgeAssignment.fechaFin')
-    }
+    const reason = `Base de datos incompatible. Faltan: ${missing.join(', ')}`
+    console.error('[db]', reason)
+    markDatabaseIncompatible(reason)
 
-    if (missing.length > 0) {
-      console.error(
-        `Base de datos incompatible. Faltan: ${missing.join(
-          ', '
-        )}. Ejecuta "npx prisma migrate reset" para recrear la base.`
-      )
-    }
+    return await promptDatabaseReset(missing, reason)
   } catch (error) {
+    const message = await handlePrismaError(error)
     console.error('[db] Error validando esquema', error)
+    markDatabaseIncompatible(message)
+    return false
   }
 }
 
@@ -231,10 +348,11 @@ const safeHandle = (
   ipcMain.removeHandler(channel)
   ipcMain.handle(channel, async (event, ...args) => {
     try {
+      assertDatabaseHealthy()
       return await fn(event, ...args)
     } catch (err: any) {
-      console.error(`[IPC:${channel}]`, err)
-      throw new Error(err?.message ?? String(err))
+      const message = await handlePrismaError(err, channel)
+      throw new Error(message)
     }
   })
 }
@@ -345,7 +463,8 @@ if (!gotSingleInstanceLock) {
   })
 
   app.whenReady().then(async () => {
-    await ensureDatabaseSchema()
+    const databaseReady = await ensureDatabaseSchema()
+    if (!databaseReady) return
     await createWindow()
   })
 }
