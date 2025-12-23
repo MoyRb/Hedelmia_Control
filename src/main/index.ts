@@ -4,6 +4,8 @@ import fs from 'fs'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 
+console.log('[main] Hedelmía POS main process starting')
+
 /* =========================================================
    ESM PATHS + CommonJS bridge (NECESARIO)
 ========================================================= */
