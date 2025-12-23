@@ -146,6 +146,10 @@ type SqliteColumnInfo = {
   name: string
 }
 
+type SqliteTableInfo = {
+  name: string
+}
+
 const columnExists = async (
   prismaClient: PrismaClient,
   table: string,
@@ -157,25 +161,33 @@ const columnExists = async (
   return rows.some((row) => row.name === column)
 }
 
-const ensureColumn = async (
-  prismaClient: PrismaClient,
-  table: string,
-  column: string,
-  definition: string
-) => {
-  const exists = await columnExists(prismaClient, table, column)
-  if (exists) return
-
-  console.warn(`[db] Agregando columna faltante ${table}.${column}`)
-  await prismaClient.$executeRawUnsafe(`ALTER TABLE ${table} ADD COLUMN ${definition}`)
+const tableExists = async (prismaClient: PrismaClient, table: string): Promise<boolean> => {
+  const rows = await prismaClient.$queryRawUnsafe<SqliteTableInfo[]>(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`
+  )
+  return rows.length > 0
 }
 
 const ensureDatabaseSchema = async () => {
   const prismaClient = getPrisma()
 
-  await ensureColumn(prismaClient, 'ProductType', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
-  await ensureColumn(prismaClient, 'Flavor', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
-  await ensureColumn(prismaClient, 'Product', 'activo', 'activo BOOLEAN NOT NULL DEFAULT 1')
+  const missing: string[] = []
+
+  if (!(await tableExists(prismaClient, 'CustomerMovement'))) {
+    missing.push('CustomerMovement')
+  }
+
+  if (!(await columnExists(prismaClient, 'FridgeAssignment', 'fechaFin'))) {
+    missing.push('FridgeAssignment.fechaFin')
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Base de datos incompatible. Faltan: ${missing.join(
+        ', '
+      )}. Ejecuta "npx prisma migrate reset" para recrear la base.`
+    )
+  }
 }
 
 /* =========================================================

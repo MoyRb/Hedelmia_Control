@@ -17,14 +17,10 @@ export default function Ventas() {
 
   const cargarCatalogo = async () => {
     setCargando(true);
-    setError('');
     try {
       const data = await window.hedelmia.listarCatalogo();
       setProductos(data.productos);
       setSabores(data.sabores);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudo cargar el catálogo de productos.');
     } finally {
       setCargando(false);
     }
@@ -34,11 +30,7 @@ export default function Ventas() {
     setCargandoClientes(true);
     try {
       const data = await window.hedelmia.listarClientes();
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida de clientes.');
       setClientes(data);
-    } catch (err) {
-      console.error(err);
-      setError(`No se pudieron cargar los clientes.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargandoClientes(false);
     }

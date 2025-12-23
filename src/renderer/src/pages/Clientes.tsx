@@ -50,14 +50,9 @@ export default function Clientes() {
 
   const cargarClientes = async () => {
     setCargando(true);
-    setError('');
     try {
       const data = await window.hedelmia.listarClientes();
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida de clientes.');
       setClientes(data);
-    } catch (err) {
-      console.error(err);
-      setError(`No se pudieron cargar los clientes.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargando(false);
     }
@@ -65,20 +60,15 @@ export default function Clientes() {
 
   const cargarAsignacionesCliente = async (clienteId: number) => {
     setCargandoAsignaciones(true);
-    setError('');
     try {
       const data = await window.hedelmia.listarAsignacionesCliente(clienteId);
       setAsignaciones(data);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron cargar las asignaciones de refris.');
     } finally {
       setCargandoAsignaciones(false);
     }
   };
 
   const cargarRefrisDisponibles = async () => {
-    setError('');
     try {
       const disponibles = await window.hedelmia.listarRefrisDisponibles();
       setRefrisDisponibles(disponibles);
@@ -91,9 +81,6 @@ export default function Clientes() {
         entregadoEn: new Date().toISOString().slice(0, 10)
       }));
       setMostrandoModalAsignacion(true);
-    } catch (err) {
-      console.error(err);
-      setError('No se pudieron cargar los refris disponibles.');
     }
   };
 
