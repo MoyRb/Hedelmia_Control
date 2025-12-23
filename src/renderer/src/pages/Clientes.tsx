@@ -52,7 +52,7 @@ export default function Clientes() {
     setCargando(true);
     try {
       const data = await window.hedelmia.listarClientes();
-      setClientes(data);
+      setClientes([...data]);
     } finally {
       setCargando(false);
     }
@@ -165,6 +165,16 @@ export default function Clientes() {
           saldo,
           estado: form.estado
         });
+        const clienteActualizado: Customer = {
+          ...editando,
+          nombre: form.nombre.trim(),
+          telefono: form.telefono.trim() || undefined,
+          limite,
+          saldo,
+          estado: form.estado
+        };
+        setClientes((prev) => prev.map((c) => (c.id === clienteActualizado.id ? clienteActualizado : c)));
+        setEditando(clienteActualizado);
         setMensaje('Cliente actualizado correctamente.');
       } else {
         await window.hedelmia.crearCliente({
