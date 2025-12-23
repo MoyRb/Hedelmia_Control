@@ -4,6 +4,8 @@ import { useClientesContext } from '../state/ClientesContext';
 
 type PagareConAbonos = PromissoryNote & { abonos?: PromissoryPayment[] };
 
+const hedelmia = window.hedelmia;
+
 export default function Creditos() {
   const { clientes, cargando: cargandoClientes, cargarClientes, error: errorClientes } = useClientesContext();
   const [pagares, setPagares] = useState<PagareConAbonos[]>([]);
@@ -24,7 +26,7 @@ export default function Creditos() {
     setCargandoPagares(true);
     setError('');
     try {
-      const data = await window.hedelmia.listarPagaresPorCliente(clienteId);
+      const data = await hedelmia.listarPagaresPorCliente(clienteId);
       setPagares(data);
       if (!pagareSeleccionado && data.length > 0) {
         setPagareSeleccionado(data[0]);
@@ -110,7 +112,7 @@ export default function Creditos() {
     setError('');
     setMensaje('');
     try {
-      await window.hedelmia.crearPagare({ customerId: clienteSeleccionado.id, monto: montoNumero });
+      await hedelmia.crearPagare({ customerId: clienteSeleccionado.id, monto: montoNumero });
       setMensaje('Pagaré generado correctamente.');
       cerrarModal();
       await Promise.all([cargarPagares(clienteSeleccionado.id), cargarClientes()]);
@@ -147,7 +149,7 @@ export default function Creditos() {
     setError('');
     setMensaje('');
     try {
-      const resultado = await window.hedelmia.registrarAbonoPagare({
+      const resultado = await hedelmia.registrarAbonoPagare({
         promissoryNoteId: pagareParaAbono.id,
         monto: montoNumero
       });
