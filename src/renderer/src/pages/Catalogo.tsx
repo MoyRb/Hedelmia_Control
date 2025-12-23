@@ -367,116 +367,139 @@ export default function Catalogo() {
 
       {/* MODAL TIPO */}
       {mostrarTipo && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-md space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold">{editTipoId ? 'Editar tipo' : 'Nuevo tipo'}</h4>
-              <button onClick={() => setMostrarTipo(false)}>Cerrar</button>
+        <div className="fixed inset-0 bg-black/30 z-20">
+          <div className="flex min-h-full items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] p-5 flex flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-semibold">{editTipoId ? 'Editar tipo' : 'Nuevo tipo'}</h4>
+                <button onClick={() => setMostrarTipo(false)}>Cerrar</button>
+              </div>
+
+              <div className="space-y-3 overflow-y-auto pr-1 py-3">
+                <label className="flex flex-col text-sm gap-1">
+                  Nombre
+                  <input className="input" value={nuevoTipo.nombre} onChange={(e) => setNuevoTipo((t) => ({ ...t, nombre: e.target.value }))} />
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={nuevoTipo.activo} onChange={(e) => setNuevoTipo((t) => ({ ...t, activo: e.target.checked }))} />
+                  Activo
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-3 border-t">
+                <button className="btn w-full" onClick={guardarTipo}>Guardar</button>
+                <button className="btn-secondary w-full" onClick={() => setMostrarTipo(false)}>Cancelar</button>
+              </div>
             </div>
-            <label className="flex flex-col text-sm gap-1">
-              Nombre
-              <input className="input" value={nuevoTipo.nombre} onChange={(e) => setNuevoTipo((t) => ({ ...t, nombre: e.target.value }))} />
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={nuevoTipo.activo} onChange={(e) => setNuevoTipo((t) => ({ ...t, activo: e.target.checked }))} />
-              Activo
-            </label>
-            <button className="btn w-full" onClick={guardarTipo}>Guardar</button>
           </div>
         </div>
       )}
 
       {/* MODAL SABOR */}
       {mostrarSabor && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-md space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold">{editSaborId ? 'Editar sabor' : 'Nuevo sabor'}</h4>
-              <button onClick={() => setMostrarSabor(false)}>Cerrar</button>
+        <div className="fixed inset-0 bg-black/30 z-20">
+          <div className="flex min-h-full items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-md max-h-[90vh] p-5 flex flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-semibold">{editSaborId ? 'Editar sabor' : 'Nuevo sabor'}</h4>
+                <button onClick={() => setMostrarSabor(false)}>Cerrar</button>
+              </div>
+
+              <div className="space-y-3 overflow-y-auto pr-1 py-3">
+                <label className="flex flex-col text-sm gap-1">
+                  Nombre
+                  <input className="input" value={nuevoSabor.nombre} onChange={(e) => setNuevoSabor((s) => ({ ...s, nombre: e.target.value }))} />
+                </label>
+                <label className="flex flex-col text-sm gap-1">
+                  Color (opcional)
+                  <input className="input" value={nuevoSabor.color ?? ''} onChange={(e) => setNuevoSabor((s) => ({ ...s, color: e.target.value }))} />
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={nuevoSabor.activo} onChange={(e) => setNuevoSabor((s) => ({ ...s, activo: e.target.checked }))} />
+                  Activo
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-3 border-t">
+                <button className="btn w-full" onClick={guardarSabor}>Guardar</button>
+                <button className="btn-secondary w-full" onClick={() => setMostrarSabor(false)}>Cancelar</button>
+              </div>
             </div>
-            <label className="flex flex-col text-sm gap-1">
-              Nombre
-              <input className="input" value={nuevoSabor.nombre} onChange={(e) => setNuevoSabor((s) => ({ ...s, nombre: e.target.value }))} />
-            </label>
-            <label className="flex flex-col text-sm gap-1">
-              Color (opcional)
-              <input className="input" value={nuevoSabor.color ?? ''} onChange={(e) => setNuevoSabor((s) => ({ ...s, color: e.target.value }))} />
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={nuevoSabor.activo} onChange={(e) => setNuevoSabor((s) => ({ ...s, activo: e.target.checked }))} />
-              Activo
-            </label>
-            <button className="btn w-full" onClick={guardarSabor}>Guardar</button>
           </div>
         </div>
       )}
 
       {/* MODAL PRODUCTO */}
       {mostrarProducto && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-xl shadow-lg p-5 w-full max-w-lg space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold">{editProductoId ? 'Editar producto' : 'Nuevo producto'}</h4>
-              <button onClick={() => setMostrarProducto(false)}>Cerrar</button>
+        <div className="fixed inset-0 bg-black/30 z-20">
+          <div className="flex min-h-full items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-lg max-h-[90vh] p-5 flex flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-semibold">{editProductoId ? 'Editar producto' : 'Nuevo producto'}</h4>
+                <button onClick={() => setMostrarProducto(false)}>Cerrar</button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto pr-1 py-3">
+                <label className="flex flex-col text-sm gap-1">
+                  Tipo
+                  <select className="input" value={nuevoProducto.tipoId} onChange={(e) => setNuevoProducto((p) => ({ ...p, tipoId: Number(e.target.value) }))}>
+                    <option value={0}>Selecciona tipo</option>
+                    {tipos.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col text-sm gap-1">
+                  Sabor
+                  <select className="input" value={nuevoProducto.saborId} onChange={(e) => setNuevoProducto((p) => ({ ...p, saborId: Number(e.target.value) }))}>
+                    <option value={0}>Selecciona sabor</option>
+                    {sabores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col text-sm gap-1">
+                  Presentación
+                  <input className="input" value={nuevoProducto.presentacion} onChange={(e) => setNuevoProducto((p) => ({ ...p, presentacion: e.target.value }))} />
+                </label>
+
+                <label className="flex flex-col text-sm gap-1">
+                  Precio
+                  <input className="input" type="number" value={nuevoProducto.precio} onChange={(e) => setNuevoProducto((p) => ({ ...p, precio: e.target.value }))} />
+                </label>
+
+                <label className="flex flex-col text-sm gap-1">
+                  Costo
+                  <input className="input" type="number" value={nuevoProducto.costo} onChange={(e) => setNuevoProducto((p) => ({ ...p, costo: e.target.value }))} />
+                </label>
+
+                <label className="flex flex-col text-sm gap-1">
+                  Stock
+                  <input className="input" type="number" value={nuevoProducto.stock} onChange={(e) => setNuevoProducto((p) => ({ ...p, stock: e.target.value }))} />
+                </label>
+
+                <label className="flex flex-col text-sm gap-1 md:col-span-2">
+                  SKU (opcional)
+                  <input className="input" value={nuevoProducto.sku} onChange={(e) => setNuevoProducto((p) => ({ ...p, sku: e.target.value }))} />
+                </label>
+
+                <label className="flex items-center gap-2 text-sm md:col-span-2">
+                  <input type="checkbox" checked={nuevoProducto.activo} onChange={(e) => setNuevoProducto((p) => ({ ...p, activo: e.target.checked }))} />
+                  Activo
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-3 border-t">
+                <button className="btn w-full" onClick={guardarProducto}>Guardar</button>
+                <button className="btn-secondary w-full" onClick={() => setMostrarProducto(false)}>Cancelar</button>
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <label className="flex flex-col text-sm gap-1">
-                Tipo
-                <select className="input" value={nuevoProducto.tipoId} onChange={(e) => setNuevoProducto((p) => ({ ...p, tipoId: Number(e.target.value) }))}>
-                  <option value={0}>Selecciona tipo</option>
-                  {tipos.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col text-sm gap-1">
-                Sabor
-                <select className="input" value={nuevoProducto.saborId} onChange={(e) => setNuevoProducto((p) => ({ ...p, saborId: Number(e.target.value) }))}>
-                  <option value={0}>Selecciona sabor</option>
-                  {sabores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col text-sm gap-1">
-                Presentación
-                <input className="input" value={nuevoProducto.presentacion} onChange={(e) => setNuevoProducto((p) => ({ ...p, presentacion: e.target.value }))} />
-              </label>
-
-              <label className="flex flex-col text-sm gap-1">
-                Precio
-                <input className="input" type="number" value={nuevoProducto.precio} onChange={(e) => setNuevoProducto((p) => ({ ...p, precio: e.target.value }))} />
-              </label>
-
-              <label className="flex flex-col text-sm gap-1">
-                Costo
-                <input className="input" type="number" value={nuevoProducto.costo} onChange={(e) => setNuevoProducto((p) => ({ ...p, costo: e.target.value }))} />
-              </label>
-
-              <label className="flex flex-col text-sm gap-1">
-                Stock
-                <input className="input" type="number" value={nuevoProducto.stock} onChange={(e) => setNuevoProducto((p) => ({ ...p, stock: e.target.value }))} />
-              </label>
-
-              <label className="flex flex-col text-sm gap-1 md:col-span-2">
-                SKU (opcional)
-                <input className="input" value={nuevoProducto.sku} onChange={(e) => setNuevoProducto((p) => ({ ...p, sku: e.target.value }))} />
-              </label>
-
-              <label className="flex items-center gap-2 text-sm md:col-span-2">
-                <input type="checkbox" checked={nuevoProducto.activo} onChange={(e) => setNuevoProducto((p) => ({ ...p, activo: e.target.checked }))} />
-                Activo
-              </label>
-            </div>
-
-            <button className="btn w-full" onClick={guardarProducto}>Guardar</button>
           </div>
         </div>
       )}
