@@ -17,14 +17,9 @@ export default function Refris() {
 
   const cargarRefris = async () => {
     setCargando(true);
-    setError('');
     try {
       const data = await window.hedelmia.listarRefris();
-      if (!Array.isArray(data)) throw new Error('Respuesta inválida de refris.');
       setRefris(data);
-    } catch (err) {
-      console.error(err);
-      setError(`No se pudieron cargar los refris.${err instanceof Error ? ` ${err.message}` : ''}`);
     } finally {
       setCargando(false);
     }

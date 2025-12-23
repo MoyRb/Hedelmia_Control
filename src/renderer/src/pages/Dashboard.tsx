@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, RefreshCcw } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import type { DashboardSummary } from '../../../preload';
 
@@ -12,48 +12,15 @@ const money = (value: number) =>
     minimumFractionDigits: 2
   });
 
-const normalizarDashboard = (payload: Partial<DashboardSummary> & { ventasDia?: number }): DashboardSummary => {
-  const ventasDia = typeof payload.ventasDia === 'number' ? payload.ventasDia : payload.kpis?.ventasDia ?? 0;
-  const refrisAsignados = payload.kpis?.refrisAsignados ?? 0;
-  const refrisDisponibles = payload.kpis?.refrisDisponibles ?? 0;
-
-  return {
-    kpis: {
-      cajaDia: payload.kpis?.cajaDia ?? 0,
-      ventasDia,
-      clientesConAdeudo: payload.kpis?.clientesConAdeudo ?? 0,
-      refrisAsignados,
-      refrisDisponibles
-    },
-    tablas: {
-      ultimasVentas: payload.tablas?.ultimasVentas ?? [],
-      clientesSaldo: payload.tablas?.clientesSaldo ?? [],
-      inventarioBajo: payload.tablas?.inventarioBajo ?? []
-    },
-    graficas: {
-      ingresosVsEgresos: payload.graficas?.ingresosVsEgresos ?? [],
-      refrisAsignadosVsLibres: payload.graficas?.refrisAsignadosVsLibres ?? [
-        { label: 'Asignados', valor: refrisAsignados },
-        { label: 'Disponibles', valor: refrisDisponibles }
-      ]
-    }
-  };
-};
-
 export default function Dashboard() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState('');
 
   const cargar = async () => {
     setCargando(true);
-    setError('');
     try {
       const response = await window.hedelmia.obtenerDashboard();
-      setData(normalizarDashboard(response));
-    } catch (err) {
-      console.error(err);
-      setError(`No se pudo cargar el dashboard.${err instanceof Error ? ` ${err.message}` : ''}`);
+      setData(response);
     } finally {
       setCargando(false);
     }
@@ -65,8 +32,8 @@ export default function Dashboard() {
 
   const kpis = data?.kpis;
 
-  const refrisChart = useMemo(() => data?.graficas.refrisAsignadosVsLibres ?? [], [data]);
-  const flujoChart = useMemo(() => data?.graficas.ingresosVsEgresos ?? [], [data]);
+  const refrisChart = useMemo(() => (data ? data.graficas.refrisAsignadosVsLibres : []), [data]);
+  const flujoChart = useMemo(() => (data ? data.graficas.ingresosVsEgresos : []), [data]);
 
   return (
     <div className="space-y-4">
@@ -82,13 +49,6 @@ export default function Dashboard() {
           <RefreshCcw size={16} /> Recargar
         </button>
       </div>
-
-      {error && (
-        <div className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
-          <AlertTriangle size={16} />
-          <span className="text-sm">{error}</span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <DashboardCard title="Caja del día" value={kpis ? money(kpis.cajaDia) : '--'} />

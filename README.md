@@ -44,14 +44,13 @@ Este flujo alinea el **schema.prisma** con una base SQLite nueva sin tocar la l�
 ```bash
 rm -f prisma/hedelmia.db
 ```
-2. Genera el cliente y recrea el esquema desde el schema:
+2. Reconstruye el esquema con migraciones:
 ```bash
-DATABASE_URL="file:./prisma/hedelmia.db" npx prisma generate
-DATABASE_URL="file:./prisma/hedelmia.db" npx prisma db push
+DATABASE_URL="file:./prisma/hedelmia.db" npx prisma migrate reset
 ```
-3. Ejecuta el seed:
+3. Si necesitas resembrar manualmente:
 ```bash
-DATABASE_URL="file:./prisma/hedelmia.db" npm run seed
+DATABASE_URL="file:./prisma/hedelmia.db" npx prisma db seed
 ```
 4. (Opcional) Borra la copia local en `app.getPath('userData')/hedelmia.db` si ya estaba en uso.
 
@@ -65,7 +64,7 @@ El admin inicial es `admin@hedelmia.local` / `admin123`.
 Vienen en el seed: sabores, productos, clientes, cajas y usuario Admin.
 
 ## Pruebas rápidas
-1. Ejecuta `npm run seed` para crear/actualizar la base SQLite con los catálogos iniciales.
+1. Ejecuta `DATABASE_URL="file:./prisma/hedelmia.db" npx prisma migrate reset` para recrear la base SQLite con datos demo.
 2. Arranca el entorno con `npm run dev` y abre la vista de Catálogo, Finanzas y Ventas.
 3. Agrega un sabor y un producto desde Catálogo y verifica que persistan tras recargar.
 4. Registra un ingreso o gasto en cada caja y revisa que los totales se actualicen.
