@@ -20,6 +20,8 @@ const emptyForm: ClienteForm = {
   estado: 'activo'
 };
 
+const hedelmia = window.hedelmia;
+
 export default function Clientes() {
   const { clientes, cargando, cargarClientes, error: errorClientes, limpiarError } = useClientesContext();
   const [mostrandoModal, setMostrandoModal] = useState(false);
@@ -51,7 +53,7 @@ export default function Clientes() {
   const cargarAsignacionesCliente = async (clienteId: number) => {
     setCargandoAsignaciones(true);
     try {
-      const data = await window.hedelmia.listarAsignacionesCliente(clienteId);
+      const data = await hedelmia.listarAsignacionesCliente(clienteId);
       setAsignaciones(data);
     } finally {
       setCargandoAsignaciones(false);
@@ -60,7 +62,7 @@ export default function Clientes() {
 
   const cargarRefrisDisponibles = async () => {
     try {
-      const disponibles = await window.hedelmia.listarRefrisDisponibles();
+      const disponibles = await hedelmia.listarRefrisDisponibles();
       setRefrisDisponibles(disponibles);
       setFormAsignacion((f) => ({
         ...f,
@@ -140,7 +142,7 @@ export default function Clientes() {
     setMensaje('');
     try {
       if (editando) {
-        await window.hedelmia.actualizarCliente({
+        await hedelmia.actualizarCliente({
           id: editando.id,
           nombre: form.nombre.trim(),
           telefono: form.telefono.trim() || undefined,
@@ -149,7 +151,7 @@ export default function Clientes() {
           estado: form.estado
         });
       } else {
-        await window.hedelmia.crearCliente({
+        await hedelmia.crearCliente({
           nombre: form.nombre.trim(),
           telefono: form.telefono.trim() || undefined,
           limite,
@@ -191,7 +193,7 @@ export default function Clientes() {
     try {
       const deposito = formAsignacion.deposito.trim() ? parseFloat(formAsignacion.deposito) : undefined;
       const renta = formAsignacion.renta.trim() ? parseFloat(formAsignacion.renta) : undefined;
-      const nuevaAsignacion = await window.hedelmia.crearAsignacionRefri({
+      const nuevaAsignacion = await hedelmia.crearAsignacionRefri({
         customerId: editando.id,
         assetId: parseInt(formAsignacion.assetId, 10),
         ubicacion: formAsignacion.ubicacion.trim(),
@@ -220,7 +222,7 @@ export default function Clientes() {
     setEliminandoAsignacionId(id);
     setError('');
     try {
-      await window.hedelmia.eliminarAsignacionRefri(id);
+      await hedelmia.eliminarAsignacionRefri(id);
       if (editando) {
         await cargarAsignacionesCliente(editando.id);
       } else {
@@ -249,7 +251,7 @@ export default function Clientes() {
     const nuevoEstado = cliente.estado === 'activo' ? 'inactivo' : 'activo';
     setError('');
     try {
-      await window.hedelmia.toggleClienteEstado({ id: cliente.id, estado: nuevoEstado });
+      await hedelmia.toggleClienteEstado({ id: cliente.id, estado: nuevoEstado });
       await cargarClientes();
     } catch (err) {
       console.error(err);

@@ -9,6 +9,8 @@ import {
 } from 'react';
 import type { Customer } from '../../../preload';
 
+const hedelmia = window.hedelmia;
+
 const isClienteValido = (value: unknown): value is Customer => {
   if (!value || typeof value !== 'object') return false;
   const posibleCliente = value as Record<string, unknown>;
@@ -52,7 +54,7 @@ export function ClientesProvider({ children }: PropsWithChildren) {
     setCargando(true);
     const anteriores = clientesPrevios.current;
     try {
-      const respuesta = await window.hedelmia.listarClientes();
+      const respuesta = await hedelmia.listarClientes();
       console.debug('[Clientes] Respuesta IPC listarClientes', respuesta);
       const data = normalizarRespuestaClientes(respuesta);
       if (!data) {
