@@ -156,13 +156,14 @@ export default function Clientes() {
         });
         setMensaje('Cliente actualizado correctamente.');
       } else {
-        await window.hedelmia.crearCliente({
+        const nuevoCliente = await window.hedelmia.crearCliente({
           nombre: form.nombre.trim(),
           telefono: form.telefono.trim() || undefined,
           limite,
           saldo,
           estado: form.estado
         });
+        setClientes((prev) => [...prev, nuevoCliente]);
         setMensaje('Cliente creado correctamente.');
       }
       cerrarModal();
