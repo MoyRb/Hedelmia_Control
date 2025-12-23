@@ -193,24 +193,28 @@ const tableExists = async (prismaClient: PrismaClient, table: string): Promise<b
 }
 
 const ensureDatabaseSchema = async () => {
-  const prismaClient = getPrisma()
+  try {
+    const prismaClient = getPrisma()
 
-  const missing: string[] = []
+    const missing: string[] = []
 
-  if (!(await tableExists(prismaClient, 'CustomerMovement'))) {
-    missing.push('CustomerMovement')
-  }
+    if (!(await tableExists(prismaClient, 'CustomerMovement'))) {
+      missing.push('CustomerMovement')
+    }
 
-  if (!(await columnExists(prismaClient, 'FridgeAssignment', 'fechaFin'))) {
-    missing.push('FridgeAssignment.fechaFin')
-  }
+    if (!(await columnExists(prismaClient, 'FridgeAssignment', 'fechaFin'))) {
+      missing.push('FridgeAssignment.fechaFin')
+    }
 
-  if (missing.length > 0) {
-    throw new Error(
-      `Base de datos incompatible. Faltan: ${missing.join(
-        ', '
-      )}. Ejecuta "npx prisma migrate reset" para recrear la base.`
-    )
+    if (missing.length > 0) {
+      console.error(
+        `Base de datos incompatible. Faltan: ${missing.join(
+          ', '
+        )}. Ejecuta "npx prisma migrate reset" para recrear la base.`
+      )
+    }
+  } catch (error) {
+    console.error('[db] Error validando esquema', error)
   }
 }
 
