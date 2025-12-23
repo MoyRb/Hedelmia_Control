@@ -102,19 +102,22 @@ process.on('uncaughtException', (error) => {
 
 const resolvePreloadPath = () => {
   const candidates = [
-    path.join(__dirname, '../preload/index.js'),
-    path.join(app.getAppPath(), 'dist', 'preload', 'index.js')
+    path.resolve(__dirname, '../preload/index.js'),
+    path.resolve(app.getAppPath(), 'dist', 'preload', 'index.js'),
+    path.resolve(process.resourcesPath, 'app.asar.unpacked', 'dist', 'preload', 'index.js')
   ]
   const found = candidates.find((candidate) => fs.existsSync(candidate))
-  if (!found) {
-    const error = new Error('Preload file missing')
-    console.error('[preload] No se encontró el archivo preload.', {
-      candidates,
-      error
-    })
-    return undefined
-  }
-  return found
+
+  const preloadPath = found ?? candidates[0]
+
+  console.info('[preload] resolved preload path', {
+    isPackaged: app.isPackaged,
+    preloadPath,
+    exists: !!found,
+    candidates
+  })
+
+  return preloadPath
 }
 
 const resolveRendererPath = () => {
