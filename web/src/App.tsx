@@ -4,17 +4,20 @@ import { PosProvider } from './context/PosContext';
 import { ProductsPage } from './pages/ProductsPage';
 import { PosPage } from './pages/PosPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { SalesPage } from './pages/SalesPage';
 
 const views = {
   dashboard: <DashboardPage />,
   pos: <PosPage />,
   products: <ProductsPage />,
+  sales: <SalesPage />,
 };
 
 const titles: Record<string, string> = {
   dashboard: 'Panel general',
   pos: 'Punto de venta',
   products: 'Productos',
+  sales: 'Ventas',
 };
 
 const AppContent: React.FC = () => {

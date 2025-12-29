@@ -48,6 +48,17 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [sales, setSales] = useState<Sale[]>(() => loadFromStorage(SALES_KEY, []));
 
   useEffect(() => {
+    const syncFromStorage = () => {
+      setProducts(loadFromStorage(PRODUCTS_KEY, []));
+      setSales(loadFromStorage(SALES_KEY, []));
+    };
+
+    syncFromStorage();
+    window.addEventListener('storage', syncFromStorage);
+    return () => window.removeEventListener('storage', syncFromStorage);
+  }, []);
+
+  useEffect(() => {
     saveToStorage(PRODUCTS_KEY, products);
   }, [products]);
 
@@ -56,12 +67,21 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [sales]);
 
   const addProduct = (product: Omit<Product, 'id'>) => {
-    const newProduct: Product = { ...product, id: generateId() };
+    const safeStock = Math.max(0, product.stock);
+    const newProduct: Product = { ...product, stock: safeStock, id: generateId() };
     setProducts((prev) => [...prev, newProduct]);
   };
 
   const updateProduct = (id: string, changes: Partial<Omit<Product, 'id'>>) => {
-    setProducts((prev) => prev.map((product) => (product.id === id ? { ...product, ...changes } : product)));
+    setProducts((prev) =>
+      prev.map((product) => {
+        if (product.id !== id) return product;
+        const nextStock =
+          changes.stock === undefined ? product.stock : Math.max(0, Number.isNaN(changes.stock) ? 0 : changes.stock);
+
+        return { ...product, ...changes, stock: nextStock };
+      }),
+    );
   };
 
   const deleteProduct = (id: string) => {

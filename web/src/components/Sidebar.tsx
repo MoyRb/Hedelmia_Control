@@ -1,10 +1,11 @@
-import { ChartBarIcon, ShoppingCartIcon, CubeIcon } from '@heroicons/react/24/outline';
+import { ChartBarIcon, ShoppingCartIcon, CubeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import React from 'react';
 
 const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
   { key: 'pos', label: 'POS', icon: ShoppingCartIcon },
   { key: 'products', label: 'Productos', icon: CubeIcon },
+  { key: 'sales', label: 'Ventas', icon: DocumentTextIcon },
 ] as const;
 
 type SidebarProps = {
