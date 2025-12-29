@@ -22,20 +22,102 @@ export type Sale = {
   date: string;
 };
 
+export type FinanceMovement = {
+  id: string;
+  box: 'chica' | 'grande';
+  kind: 'entrada' | 'salida';
+  amount: number;
+  concept: string;
+  date: string;
+  source?: 'manual' | 'venta';
+};
+
+export type Client = {
+  id: string;
+  name: string;
+  active: boolean;
+  notes: string;
+};
+
+export type CreditPayment = {
+  id: string;
+  amount: number;
+  date: string;
+  note?: string;
+};
+
+export type Credit = {
+  id: string;
+  clientId: string;
+  amount: number;
+  date: string;
+  status: 'pendiente' | 'pagado';
+  payments: CreditPayment[];
+};
+
+export type FridgeLoan = {
+  id: string;
+  clientId: string;
+  quantity: number;
+  deliveryDate: string;
+  status: 'entregado' | 'devuelto';
+};
+
+export type RawMaterial = {
+  id: string;
+  name: string;
+  stock: number;
+  minStock: number;
+};
+
+export type RawMaterialMovement = {
+  id: string;
+  materialId: string;
+  type: 'entrada' | 'salida';
+  amount: number;
+  note: string;
+  date: string;
+};
+
 type SalePayload = { productId: string; quantity: number }[];
 
 type PosContextValue = {
   products: Product[];
   sales: Sale[];
+  financeMovements: FinanceMovement[];
+  clients: Client[];
+  credits: Credit[];
+  fridgeLoans: FridgeLoan[];
+  rawMaterials: RawMaterial[];
+  rawMaterialMovements: RawMaterialMovement[];
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: string, changes: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (id: string) => void;
   recordSale: (items: SalePayload) => { success: boolean; message?: string };
+  addFinanceMovement: (movement: Omit<FinanceMovement, 'id'>) => void;
+  addClient: (client: Omit<Client, 'id'>) => void;
+  updateClient: (id: string, changes: Partial<Omit<Client, 'id'>>) => void;
+  deleteClient: (id: string) => void;
+  addCredit: (credit: Omit<Credit, 'id' | 'payments' | 'status'>) => void;
+  addCreditPayment: (creditId: string, payment: Omit<CreditPayment, 'id'>) => void;
+  updateCreditStatus: (creditId: string, status: Credit['status']) => void;
+  addFridgeLoan: (loan: Omit<FridgeLoan, 'id' | 'status'>) => void;
+  markFridgeReturned: (loanId: string) => void;
+  addRawMaterial: (material: Omit<RawMaterial, 'id'>) => void;
+  updateRawMaterial: (id: string, changes: Partial<Omit<RawMaterial, 'id'>>) => void;
+  deleteRawMaterial: (id: string) => void;
+  recordMaterialMovement: (movement: Omit<RawMaterialMovement, 'id'>) => { success: boolean; message?: string };
 };
 
 const PosContext = createContext<PosContextValue | null>(null);
 const PRODUCTS_KEY = 'hedelmia_products';
 const SALES_KEY = 'hedelmia_sales';
+const FINANCE_KEY = 'hedelmia_finance';
+const CLIENTS_KEY = 'hedelmia_clients';
+const CREDITS_KEY = 'hedelmia_credits';
+const FRIDGES_KEY = 'hedelmia_fridge_loans';
+const RAW_MATERIALS_KEY = 'hedelmia_raw_materials';
+const RAW_MATERIAL_MOVEMENTS_KEY = 'hedelmia_raw_material_movements';
 
 function generateId() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -46,6 +128,18 @@ function generateId() {
 export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => loadFromStorage(PRODUCTS_KEY, []));
   const [sales, setSales] = useState<Sale[]>(() => loadFromStorage(SALES_KEY, []));
+  const [financeMovements, setFinanceMovements] = useState<FinanceMovement[]>(
+    () => loadFromStorage(FINANCE_KEY, []),
+  );
+  const [clients, setClients] = useState<Client[]>(() => loadFromStorage(CLIENTS_KEY, []));
+  const [credits, setCredits] = useState<Credit[]>(() => loadFromStorage(CREDITS_KEY, []));
+  const [fridgeLoans, setFridgeLoans] = useState<FridgeLoan[]>(() => loadFromStorage(FRIDGES_KEY, []));
+  const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>(
+    () => loadFromStorage(RAW_MATERIALS_KEY, []),
+  );
+  const [rawMaterialMovements, setRawMaterialMovements] = useState<RawMaterialMovement[]>(
+    () => loadFromStorage(RAW_MATERIAL_MOVEMENTS_KEY, []),
+  );
 
   useEffect(() => {
     const syncFromStorage = () => {
@@ -65,6 +159,30 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     saveToStorage(SALES_KEY, sales);
   }, [sales]);
+
+  useEffect(() => {
+    saveToStorage(FINANCE_KEY, financeMovements);
+  }, [financeMovements]);
+
+  useEffect(() => {
+    saveToStorage(CLIENTS_KEY, clients);
+  }, [clients]);
+
+  useEffect(() => {
+    saveToStorage(CREDITS_KEY, credits);
+  }, [credits]);
+
+  useEffect(() => {
+    saveToStorage(FRIDGES_KEY, fridgeLoans);
+  }, [fridgeLoans]);
+
+  useEffect(() => {
+    saveToStorage(RAW_MATERIALS_KEY, rawMaterials);
+  }, [rawMaterials]);
+
+  useEffect(() => {
+    saveToStorage(RAW_MATERIAL_MOVEMENTS_KEY, rawMaterialMovements);
+  }, [rawMaterialMovements]);
 
   const addProduct = (product: Omit<Product, 'id'>) => {
     const safeStock = Math.max(0, product.stock);
@@ -118,12 +236,135 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setProducts(updatedProducts);
     setSales((prev) => [...prev, sale]);
+    setFinanceMovements((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        box: 'grande',
+        kind: 'entrada',
+        amount: total,
+        concept: 'Venta POS',
+        date: sale.date,
+        source: 'venta',
+      },
+    ]);
+    return { success: true };
+  };
+
+  const addFinanceMovement = (movement: Omit<FinanceMovement, 'id'>) => {
+    setFinanceMovements((prev) => [...prev, { ...movement, id: generateId() }]);
+  };
+
+  const addClient = (client: Omit<Client, 'id'>) => {
+    setClients((prev) => [...prev, { ...client, id: generateId() }]);
+  };
+
+  const updateClient = (id: string, changes: Partial<Omit<Client, 'id'>>) => {
+    setClients((prev) => prev.map((client) => (client.id === id ? { ...client, ...changes } : client)));
+  };
+
+  const deleteClient = (id: string) => {
+    setClients((prev) => prev.filter((client) => client.id !== id));
+  };
+
+  const addCredit = (credit: Omit<Credit, 'id' | 'payments' | 'status'>) => {
+    const payload: Credit = { ...credit, id: generateId(), status: 'pendiente', payments: [] };
+    setCredits((prev) => [...prev, payload]);
+  };
+
+  const updateCreditStatus = (creditId: string, status: Credit['status']) => {
+    setCredits((prev) => prev.map((credit) => (credit.id === creditId ? { ...credit, status } : credit)));
+  };
+
+  const addCreditPayment = (creditId: string, payment: Omit<CreditPayment, 'id'>) => {
+    setCredits((prev) =>
+      prev.map((credit) => {
+        if (credit.id !== creditId) return credit;
+
+        const updatedPayments = [...credit.payments, { ...payment, id: generateId() }];
+        const paid = updatedPayments.reduce((acc, current) => acc + current.amount, 0);
+        const remaining = credit.amount - paid;
+        const nextStatus = remaining <= 0 ? 'pagado' : credit.status;
+        return { ...credit, payments: updatedPayments, status: nextStatus };
+      }),
+    );
+  };
+
+  const addFridgeLoan = (loan: Omit<FridgeLoan, 'id' | 'status'>) => {
+    setFridgeLoans((prev) => [...prev, { ...loan, id: generateId(), status: 'entregado' }]);
+  };
+
+  const markFridgeReturned = (loanId: string) => {
+    setFridgeLoans((prev) =>
+      prev.map((loan) => (loan.id === loanId ? { ...loan, status: 'devuelto' } : loan)),
+    );
+  };
+
+  const addRawMaterial = (material: Omit<RawMaterial, 'id'>) => {
+    setRawMaterials((prev) => [...prev, { ...material, id: generateId() }]);
+  };
+
+  const updateRawMaterial = (id: string, changes: Partial<Omit<RawMaterial, 'id'>>) => {
+    setRawMaterials((prev) => prev.map((item) => (item.id === id ? { ...item, ...changes } : item)));
+  };
+
+  const deleteRawMaterial = (id: string) => {
+    setRawMaterials((prev) => prev.filter((item) => item.id !== id));
+    setRawMaterialMovements((prev) => prev.filter((movement) => movement.materialId !== id));
+  };
+
+  const recordMaterialMovement = (movement: Omit<RawMaterialMovement, 'id'>) => {
+    const material = rawMaterials.find((item) => item.id === movement.materialId);
+    if (!material) return { success: false, message: 'Materia prima no encontrada' };
+
+    const delta = movement.type === 'entrada' ? movement.amount : -movement.amount;
+    const newStock = material.stock + delta;
+
+    if (newStock < 0) return { success: false, message: 'No puedes tener stock negativo' };
+
+    updateRawMaterial(material.id, { stock: newStock });
+    setRawMaterialMovements((prev) => [...prev, { ...movement, id: generateId() }]);
     return { success: true };
   };
 
   const value = useMemo(
-    () => ({ products, sales, addProduct, updateProduct, deleteProduct, recordSale }),
-    [products, sales],
+    () => ({
+      products,
+      sales,
+      financeMovements,
+      clients,
+      credits,
+      fridgeLoans,
+      rawMaterials,
+      rawMaterialMovements,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      recordSale,
+      addFinanceMovement,
+      addClient,
+      updateClient,
+      deleteClient,
+      addCredit,
+      addCreditPayment,
+      updateCreditStatus,
+      addFridgeLoan,
+      markFridgeReturned,
+      addRawMaterial,
+      updateRawMaterial,
+      deleteRawMaterial,
+      recordMaterialMovement,
+    }),
+    [
+      products,
+      sales,
+      financeMovements,
+      clients,
+      credits,
+      fridgeLoans,
+      rawMaterials,
+      rawMaterialMovements,
+    ],
   );
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;

@@ -4,12 +4,24 @@ import { PosProvider } from './context/PosContext';
 import { ProductsPage } from './pages/ProductsPage';
 import { PosPage } from './pages/PosPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { FinancePage } from './pages/FinancePage';
+import { ClientsPage } from './pages/ClientsPage';
+import { CreditsPage } from './pages/CreditsPage';
+import { FridgesPage } from './pages/FridgesPage';
+import { MaterialsPage } from './pages/MaterialsPage';
+import { SalesPage } from './pages/SalesPage';
 import { SalesPage } from './pages/SalesPage';
 
 const views = {
   dashboard: <DashboardPage />,
   pos: <PosPage />,
   products: <ProductsPage />,
+  finances: <FinancePage />,
+  clients: <ClientsPage />,
+  credits: <CreditsPage />,
+  fridges: <FridgesPage />,
+  materials: <MaterialsPage />,
+  sales: <SalesPage />,
   sales: <SalesPage />,
 };
 
@@ -17,6 +29,12 @@ const titles: Record<string, string> = {
   dashboard: 'Panel general',
   pos: 'Punto de venta',
   products: 'Productos',
+  finances: 'Finanzas',
+  clients: 'Clientes',
+  credits: 'Créditos',
+  fridges: 'Refris',
+  materials: 'Materias primas',
+  sales: 'Ventas',
   sales: 'Ventas',
 };
 

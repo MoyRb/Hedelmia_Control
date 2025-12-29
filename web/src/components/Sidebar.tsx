@@ -1,3 +1,14 @@
+import {
+  ChartBarIcon,
+  ShoppingCartIcon,
+  CubeIcon,
+  BanknotesIcon,
+  UsersIcon,
+  ClipboardDocumentListIcon,
+  TruckIcon,
+  BeakerIcon,
+  ReceiptPercentIcon,
+} from '@heroicons/react/24/outline';
 import { ChartBarIcon, ShoppingCartIcon, CubeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import React from 'react';
 
@@ -5,6 +16,12 @@ const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
   { key: 'pos', label: 'POS', icon: ShoppingCartIcon },
   { key: 'products', label: 'Productos', icon: CubeIcon },
+  { key: 'finances', label: 'Finanzas', icon: BanknotesIcon },
+  { key: 'clients', label: 'Clientes', icon: UsersIcon },
+  { key: 'credits', label: 'Créditos', icon: ClipboardDocumentListIcon },
+  { key: 'fridges', label: 'Refris', icon: TruckIcon },
+  { key: 'materials', label: 'Materias primas', icon: BeakerIcon },
+  { key: 'sales', label: 'Ventas', icon: ReceiptPercentIcon },
   { key: 'sales', label: 'Ventas', icon: DocumentTextIcon },
 ] as const;
 
