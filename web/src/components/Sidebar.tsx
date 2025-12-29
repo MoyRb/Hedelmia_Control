@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   ChartBarIcon,
   ShoppingCartIcon,
@@ -9,8 +10,6 @@ import {
   BeakerIcon,
   ReceiptPercentIcon,
 } from '@heroicons/react/24/outline';
-import { ChartBarIcon, ShoppingCartIcon, CubeIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import React from 'react';
 
 const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
@@ -22,7 +21,6 @@ const navItems = [
   { key: 'fridges', label: 'Refris', icon: TruckIcon },
   { key: 'materials', label: 'Materias primas', icon: BeakerIcon },
   { key: 'sales', label: 'Ventas', icon: ReceiptPercentIcon },
-  { key: 'sales', label: 'Ventas', icon: DocumentTextIcon },
 ] as const;
 
 type SidebarProps = {
@@ -60,9 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ current, onSelect }) => {
         })}
       </nav>
 
-      <div className="text-xs text-coffee/60 px-2">
-        Hecho para flujo rápido y estable.
-      </div>
+      <div className="text-xs text-coffee/60 px-2">Hecho para flujo rápido y estable.</div>
     </aside>
   );
 };
