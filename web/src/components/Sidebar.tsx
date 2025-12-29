@@ -1,0 +1,50 @@
+import { ChartBarIcon, ShoppingCartIcon, CubeIcon } from '@heroicons/react/24/outline';
+import React from 'react';
+
+const navItems = [
+  { key: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
+  { key: 'pos', label: 'POS', icon: ShoppingCartIcon },
+  { key: 'products', label: 'Productos', icon: CubeIcon },
+] as const;
+
+type SidebarProps = {
+  current: string;
+  onSelect: (key: string) => void;
+};
+
+export const Sidebar: React.FC<SidebarProps> = ({ current, onSelect }) => {
+  return (
+    <aside className="bg-white border-r border-cream/80 h-full w-64 flex flex-col p-4 gap-6">
+      <div className="flex items-center gap-3 px-2">
+        <div className="h-10 w-10 rounded-xl bg-blush flex items-center justify-center font-bold text-coffee shadow-card">
+          HP
+        </div>
+        <div>
+          <p className="text-lg font-semibold">Hedelmiá POS</p>
+          <p className="text-sm text-coffee/70">Sucursal única</p>
+        </div>
+      </div>
+
+      <nav className="flex-1 flex flex-col gap-2">
+        {navItems.map(({ key, label, icon: Icon }) => {
+          const active = current === key;
+          return (
+            <button
+              key={key}
+              onClick={() => onSelect(key)}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-left font-medium transition border border-transparent
+                ${active ? 'bg-blush/60 text-coffee border-blush' : 'hover:bg-cream'}`}
+            >
+              <Icon className="h-5 w-5" />
+              {label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="text-xs text-coffee/60 px-2">
+        Hecho para flujo rápido y estable.
+      </div>
+    </aside>
+  );
+};
