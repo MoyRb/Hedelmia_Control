@@ -10,7 +10,6 @@ import { CreditsPage } from './pages/CreditsPage';
 import { FridgesPage } from './pages/FridgesPage';
 import { MaterialsPage } from './pages/MaterialsPage';
 import { SalesPage } from './pages/SalesPage';
-import { SalesPage } from './pages/SalesPage';
 
 const views = {
   dashboard: <DashboardPage />,
@@ -21,7 +20,6 @@ const views = {
   credits: <CreditsPage />,
   fridges: <FridgesPage />,
   materials: <MaterialsPage />,
-  sales: <SalesPage />,
   sales: <SalesPage />,
 };
 
@@ -34,7 +32,6 @@ const titles: Record<string, string> = {
   credits: 'Créditos',
   fridges: 'Refris',
   materials: 'Materias primas',
-  sales: 'Ventas',
   sales: 'Ventas',
 };
 

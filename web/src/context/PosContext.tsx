@@ -35,6 +35,8 @@ export type FinanceMovement = {
 export type Client = {
   id: string;
   name: string;
+  phone: string;
+  address: string;
   active: boolean;
   notes: string;
 };
@@ -61,6 +63,7 @@ export type FridgeLoan = {
   quantity: number;
   deliveryDate: string;
   status: 'entregado' | 'devuelto';
+  returnDate?: string;
 };
 
 export type RawMaterial = {
@@ -101,7 +104,7 @@ type PosContextValue = {
   addCredit: (credit: Omit<Credit, 'id' | 'payments' | 'status'>) => void;
   addCreditPayment: (creditId: string, payment: Omit<CreditPayment, 'id'>) => void;
   updateCreditStatus: (creditId: string, status: Credit['status']) => void;
-  addFridgeLoan: (loan: Omit<FridgeLoan, 'id' | 'status'>) => void;
+  addFridgeLoan: (loan: Omit<FridgeLoan, 'id' | 'status' | 'returnDate'>) => void;
   markFridgeReturned: (loanId: string) => void;
   addRawMaterial: (material: Omit<RawMaterial, 'id'>) => void;
   updateRawMaterial: (id: string, changes: Partial<Omit<RawMaterial, 'id'>>) => void;
@@ -131,7 +134,16 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [financeMovements, setFinanceMovements] = useState<FinanceMovement[]>(
     () => loadFromStorage(FINANCE_KEY, []),
   );
-  const [clients, setClients] = useState<Client[]>(() => loadFromStorage(CLIENTS_KEY, []));
+  const [clients, setClients] = useState<Client[]>(() => {
+    const storedClients = loadFromStorage<Client[]>(CLIENTS_KEY, []);
+    if (!Array.isArray(storedClients)) return [];
+
+    return storedClients.map((client) => ({
+      ...client,
+      phone: client.phone ?? '',
+      address: client.address ?? '',
+    }));
+  });
   const [credits, setCredits] = useState<Credit[]>(() => loadFromStorage(CREDITS_KEY, []));
   const [fridgeLoans, setFridgeLoans] = useState<FridgeLoan[]>(() => loadFromStorage(FRIDGES_KEY, []));
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>(
@@ -290,13 +302,15 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const addFridgeLoan = (loan: Omit<FridgeLoan, 'id' | 'status'>) => {
+  const addFridgeLoan = (loan: Omit<FridgeLoan, 'id' | 'status' | 'returnDate'>) => {
     setFridgeLoans((prev) => [...prev, { ...loan, id: generateId(), status: 'entregado' }]);
   };
 
   const markFridgeReturned = (loanId: string) => {
     setFridgeLoans((prev) =>
-      prev.map((loan) => (loan.id === loanId ? { ...loan, status: 'devuelto' } : loan)),
+      prev.map((loan) =>
+        loan.id === loanId ? { ...loan, status: 'devuelto', returnDate: new Date().toISOString() } : loan,
+      ),
     );
   };
 
