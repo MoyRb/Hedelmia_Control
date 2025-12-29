@@ -46,13 +46,19 @@ export const ProductsPage: React.FC = () => {
     changeStockValue(productId, nextValue);
   };
 
-  const saveStock = (productId: string, currentStock: number) => {
-    const newValue = stockEdits[productId];
-    if (newValue === undefined || newValue === currentStock) return;
-    updateProduct(productId, { stock: newValue });
+  const saveStock = (product: Product) => {
+    const newValue = stockEdits[product.id];
+    if (newValue === undefined || newValue === product.stock) return;
+
+    const confirmed = window.confirm(
+      `¿Confirmas actualizar el stock de ${product.name} de ${product.stock} a ${newValue}?`,
+    );
+    if (!confirmed) return;
+
+    updateProduct(product.id, { stock: newValue });
     setStockEdits((prev) => {
       const updated = { ...prev };
-      delete updated[productId];
+      delete updated[product.id];
       return updated;
     });
   };
@@ -162,10 +168,7 @@ export const ProductsPage: React.FC = () => {
                           >
                             +
                           </button>
-                          <button
-                            onClick={() => saveStock(product.id, product.stock)}
-                            className="btn-primary px-3 py-2 text-xs"
-                          >
+                          <button onClick={() => saveStock(product)} className="btn-primary px-3 py-2 text-xs">
                             Actualizar
                           </button>
                         </div>
