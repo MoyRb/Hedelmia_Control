@@ -10,6 +10,7 @@ import { CreditsPage } from './pages/CreditsPage';
 import { FridgesPage } from './pages/FridgesPage';
 import { MaterialsPage } from './pages/MaterialsPage';
 import { SalesPage } from './pages/SalesPage';
+import { ExportButton } from './components/ExportButton';
 
 const views = {
   dashboard: <DashboardPage />,
@@ -47,7 +48,10 @@ const AppContent: React.FC = () => {
             <p className="text-xs uppercase text-coffee/60 font-semibold">Hedelmiá POS</p>
             <h1 className="text-2xl font-bold">{titles[view]}</h1>
           </div>
-          <div className="px-4 py-2 rounded-lg bg-white shadow-card text-sm">Modo offline / localStorage</div>
+          <div className="flex items-center gap-3">
+            <ExportButton />
+            <div className="px-4 py-2 rounded-lg bg-white shadow-card text-sm">Modo offline / localStorage</div>
+          </div>
         </header>
         <div className="p-6">{views[view]}</div>
       </main>
