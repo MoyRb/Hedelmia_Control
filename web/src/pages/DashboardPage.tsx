@@ -4,12 +4,12 @@ import { usePos } from '../context/PosContext';
 export const DashboardPage: React.FC = () => {
   const { products, sales } = usePos();
 
-  const { salesToday, totalToday, lowStock } = useMemo(() => {
+  const { salesToday, totalToday, lowStock, todaySales } = useMemo(() => {
     const today = new Date().toLocaleDateString();
     const todaySales = sales.filter((sale) => new Date(sale.date).toLocaleDateString() === today);
     const total = todaySales.reduce((acc, sale) => acc + sale.total, 0);
     const low = products.filter((p) => p.stock <= 5);
-    return { salesToday: todaySales.length, totalToday: total, lowStock: low };
+    return { salesToday: todaySales.length, totalToday: total, lowStock: low, todaySales };
   }, [products, sales]);
 
   return (
@@ -48,6 +48,32 @@ export const DashboardPage: React.FC = () => {
             </div>
           ))}
           {!lowStock.length && <p className="text-sm text-coffee/70">Todo el stock está saludable.</p>}
+        </div>
+      </div>
+
+      <div className="lg:col-span-3 card p-6">
+        <h3 className="text-lg font-semibold mb-3">Ventas registradas hoy</h3>
+        <div className="space-y-2">
+          {todaySales.map((sale) => {
+            const saleDate = new Date(sale.date);
+            const time = saleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const itemsCount = sale.items.reduce((acc, item) => acc + item.quantity, 0);
+            return (
+              <div
+                key={sale.id}
+                className="flex items-center justify-between bg-cream/70 border border-cream rounded-lg px-4 py-3"
+              >
+                <div>
+                  <p className="font-semibold">{time}</p>
+                  <p className="text-xs text-coffee/70">{itemsCount} artículos vendidos</p>
+                </div>
+                <span className="text-sm font-semibold">${sale.total.toFixed(2)}</span>
+              </div>
+            );
+          })}
+          {!todaySales.length && (
+            <p className="text-sm text-coffee/70">Aún no registras ventas en el día.</p>
+          )}
         </div>
       </div>
     </div>

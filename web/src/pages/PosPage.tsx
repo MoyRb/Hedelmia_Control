@@ -4,17 +4,36 @@ import { usePos } from '../context/PosContext';
 
 type CartItem = { productId: string; quantity: number };
 
+type AlertState = { type: 'success' | 'error'; text: string } | null;
+
 export const PosPage: React.FC = () => {
   const { products, recordSale } = usePos();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [message, setMessage] = useState<string>('');
+  const [alert, setAlert] = useState<AlertState>(null);
+
+  const showAlert = (nextAlert: AlertState, duration = 2200) => {
+    setAlert(nextAlert);
+    if (nextAlert) {
+      setTimeout(() => setAlert(null), duration);
+    }
+  };
 
   const addToCart = (productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product || product.stock === 0) {
+      showAlert({ type: 'error', text: 'Sin stock disponible para este producto' });
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.productId === productId);
       if (existing) {
+        if (existing.quantity >= product.stock) {
+          showAlert({ type: 'error', text: 'No puedes superar el stock disponible' });
+          return prev;
+        }
         return prev.map((item) =>
-          item.productId === productId ? { ...item, quantity: item.quantity + 1 } : item,
+          item.productId === productId ? { ...item, quantity: Math.min(item.quantity + 1, product.stock) } : item,
         );
       }
       return [...prev, { productId, quantity: 1 }];
@@ -22,10 +41,18 @@ export const PosPage: React.FC = () => {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
+    const product = products.find((p) => p.id === productId);
+    const maxQuantity = product ? product.stock : quantity;
     if (quantity <= 0) {
       setCart((prev) => prev.filter((item) => item.productId !== productId));
     } else {
-      setCart((prev) => prev.map((item) => (item.productId === productId ? { ...item, quantity } : item)));
+      setCart((prev) =>
+        prev.map((item) =>
+          item.productId === productId
+            ? { ...item, quantity: Math.min(quantity, maxQuantity) }
+            : item,
+        ),
+      );
     }
   };
 
@@ -35,6 +62,7 @@ export const PosPage: React.FC = () => {
         const product = products.find((p) => p.id === item.productId);
         if (!product) return null;
         const cappedQty = Math.min(item.quantity, product.stock);
+        if (cappedQty <= 0) return null;
         return {
           ...item,
           name: product.name,
@@ -57,15 +85,24 @@ export const PosPage: React.FC = () => {
   const total = cartItems.reduce((acc, item) => acc + item.subtotal, 0);
 
   const confirmSale = () => {
-    const filteredCart = cart.filter((item) => item.quantity > 0);
-    const result = recordSale(filteredCart);
+    if (!cartItems.length) {
+      showAlert({ type: 'error', text: 'Agrega productos al carrito antes de confirmar' });
+      return;
+    }
+
+    const stockIssues = cartItems.find((item) => item.quantity > item.stock || item.stock === 0);
+    if (stockIssues) {
+      showAlert({ type: 'error', text: `Stock insuficiente para ${stockIssues.name}` });
+      return;
+    }
+
+    const payload = cartItems.map(({ productId, quantity }) => ({ productId, quantity }));
+    const result = recordSale(payload);
     if (result.success) {
-      setMessage('Venta registrada correctamente');
+      showAlert({ type: 'success', text: 'Venta registrada correctamente' });
       setCart([]);
-      setTimeout(() => setMessage(''), 2000);
     } else {
-      setMessage(result.message ?? 'No se pudo registrar la venta');
-      setTimeout(() => setMessage(''), 2500);
+      showAlert({ type: 'error', text: result.message ?? 'No se pudo registrar la venta' }, 2500);
     }
   };
 
@@ -77,24 +114,36 @@ export const PosPage: React.FC = () => {
           <span className="text-sm text-coffee/70">{products.length} en total</span>
         </div>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto">
-          {products.map((product) => (
-            <div key={product.id} className="card p-4 border border-cream">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-semibold">{product.name}</p>
-                  <p className="text-sm text-coffee/70">Stock: {product.stock}</p>
-                </div>
-                <span className="font-semibold">${product.price.toFixed(2)}</span>
-              </div>
-              <button
-                onClick={() => addToCart(product.id)}
-                className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
-                disabled={product.stock === 0}
+          {products.map((product) => {
+            const lowStock = product.stock <= 5;
+            return (
+              <div
+                key={product.id}
+                className={`card p-4 border border-cream ${lowStock ? 'ring-1 ring-blush/60' : ''}`}
               >
-                <PlusIcon className="h-4 w-4" /> Agregar
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <p className="font-semibold">{product.name}</p>
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                        lowStock ? 'bg-blush/50 text-coffee' : 'bg-cream text-coffee/70'
+                      }`}
+                    >
+                      Stock: {product.stock}
+                    </span>
+                  </div>
+                  <span className="font-semibold text-right">${product.price.toFixed(2)}</span>
+                </div>
+                <button
+                  onClick={() => addToCart(product.id)}
+                  className="btn-primary w-full mt-4 flex items-center justify-center gap-2"
+                  disabled={product.stock === 0}
+                >
+                  <PlusIcon className="h-4 w-4" /> Agregar
+                </button>
+              </div>
+            );
+          })}
           {!products.length && <p className="text-coffee/70">Crea productos para comenzar.</p>}
         </div>
       </div>
@@ -102,7 +151,15 @@ export const PosPage: React.FC = () => {
       <div className="card p-6 flex flex-col gap-4 h-full">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Carrito</h2>
-          {message && <span className="text-sm text-accent">{message}</span>}
+          {alert && (
+            <span
+              className={`text-sm px-3 py-1 rounded-full ${
+                alert.type === 'success' ? 'bg-mint/20 text-accent' : 'bg-blush/40 text-coffee'
+              }`}
+            >
+              {alert.text}
+            </span>
+          )}
         </div>
 
         <div className="space-y-3 flex-1 overflow-y-auto pr-1">

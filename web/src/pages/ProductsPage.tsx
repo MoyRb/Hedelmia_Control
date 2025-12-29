@@ -8,6 +8,7 @@ export const ProductsPage: React.FC = () => {
   const { products, addProduct, updateProduct, deleteProduct } = usePos();
   const [form, setForm] = useState<Omit<Product, 'id'>>(emptyProduct);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [stockEdits, setStockEdits] = useState<Record<string, number>>({});
 
   const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
 
@@ -33,6 +34,27 @@ export const ProductsPage: React.FC = () => {
   const cancelEdit = () => {
     setEditingId(null);
     setForm(emptyProduct);
+  };
+
+  const changeStockValue = (productId: string, value: number) => {
+    const safeValue = Number.isNaN(value) ? 0 : value;
+    setStockEdits((prev) => ({ ...prev, [productId]: Math.max(0, safeValue) }));
+  };
+
+  const adjustStock = (productId: string, currentStock: number, delta: number) => {
+    const nextValue = (stockEdits[productId] ?? currentStock) + delta;
+    changeStockValue(productId, nextValue);
+  };
+
+  const saveStock = (productId: string, currentStock: number) => {
+    const newValue = stockEdits[productId];
+    if (newValue === undefined || newValue === currentStock) return;
+    updateProduct(productId, { stock: newValue });
+    setStockEdits((prev) => {
+      const updated = { ...prev };
+      delete updated[productId];
+      return updated;
+    });
   };
 
   return (
@@ -102,31 +124,74 @@ export const ProductsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-cream">
-              {sortedProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-cream/60">
-                  <td className="py-3 font-medium">{product.name}</td>
-                  <td className="py-3">${product.price.toFixed(2)}</td>
-                  <td className="py-3">{product.stock}</td>
-                  <td className="py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => startEdit(product)}
-                        className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
-                        aria-label="Editar"
-                      >
-                        <PencilSquareIcon className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(product.id)}
-                        className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
-                        aria-label="Eliminar"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {sortedProducts.map((product) => {
+                const lowStock = product.stock <= 5;
+                const editedStock = stockEdits[product.id] ?? product.stock;
+                return (
+                  <tr key={product.id} className={`hover:bg-cream/60 ${lowStock ? 'bg-blush/10' : ''}`}>
+                    <td className="py-3 font-medium">{product.name}</td>
+                    <td className="py-3">${product.price.toFixed(2)}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            lowStock ? 'bg-blush/50 text-coffee' : 'bg-cream text-coffee/80'
+                          }`}
+                        >
+                          {product.stock} uds
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => adjustStock(product.id, product.stock, -1)}
+                            className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
+                            aria-label="Disminuir stock"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-20 border border-cream rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-mint"
+                            value={editedStock}
+                            onChange={(e) => changeStockValue(product.id, Number(e.target.value))}
+                          />
+                          <button
+                            onClick={() => adjustStock(product.id, product.stock, 1)}
+                            className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
+                            aria-label="Aumentar stock"
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => saveStock(product.id, product.stock)}
+                            className="btn-primary px-3 py-2 text-xs"
+                          >
+                            Actualizar
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEdit(product)}
+                          className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
+                          aria-label="Editar"
+                        >
+                          <PencilSquareIcon className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => deleteProduct(product.id)}
+                          className="p-2 rounded-lg bg-cream text-coffee hover:bg-blush/50"
+                          aria-label="Eliminar"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!sortedProducts.length && (
                 <tr>
                   <td colSpan={4} className="py-6 text-center text-coffee/70">
