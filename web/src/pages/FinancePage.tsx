@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { usePos } from '../context/PosContext';
+import { ConfirmPinModal } from '../components/ConfirmPinModal';
+import { FinanceMovement, usePos } from '../context/PosContext';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -8,11 +9,12 @@ type MovementForm = { concept: string; amount: number; kind: 'entrada' | 'salida
 const emptyForm: MovementForm = { concept: '', amount: 0, kind: 'entrada', date: today };
 
 export const FinancePage: React.FC = () => {
-  const { financeMovements, addFinanceMovement } = usePos();
+  const { financeMovements, addFinanceMovement, deleteCashMovement } = usePos();
   const [forms, setForms] = useState<Record<'chica' | 'grande', MovementForm>>({
     chica: emptyForm,
     grande: emptyForm,
   });
+  const [movementToDelete, setMovementToDelete] = useState<FinanceMovement | null>(null);
 
   const balances = useMemo(() => {
     return ['chica', 'grande'].reduce(
@@ -48,11 +50,18 @@ export const FinancePage: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 6);
 
+  const confirmDeletion = async () => {
+    if (!movementToDelete) return;
+    deleteCashMovement(movementToDelete.box, movementToDelete.id);
+    setMovementToDelete(null);
+  };
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-      {[{ key: 'chica', title: 'Caja chica' }, { key: 'grande', title: 'Caja grande' }].map(
-        ({ key, title }) => {
-          const boxKey = key as 'chica' | 'grande';
+    <>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {[{ key: 'chica', title: 'Caja chica' }, { key: 'grande', title: 'Caja grande' }].map(
+          ({ key, title }) => {
+            const boxKey = key as 'chica' | 'grande';
           const form = forms[boxKey];
           return (
             <div key={key} className="card p-6 space-y-4">
@@ -131,25 +140,51 @@ export const FinancePage: React.FC = () => {
 
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-coffee">Últimos movimientos</h3>
-                {recentMovements(boxKey).map((movement) => (
-                  <div
-                    key={movement.id}
-                    className="border border-cream rounded-lg px-4 py-3 flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold">{movement.concept}</p>
-                      <p className="text-xs text-coffee/70">{formatDate(movement.date)}</p>
-                      <p className="text-xs text-coffee/60 capitalize">{movement.source === 'venta' ? 'Venta automática' : 'Manual'} - {movement.kind}</p>
-                    </div>
-                    <span
-                      className={`font-semibold ${
-                        movement.kind === 'entrada' ? 'text-accent' : 'text-coffee'
-                      }`}
+                {recentMovements(boxKey).map((movement) => {
+                  const isSaleMovement = movement.source === 'sale' || movement.source === 'venta';
+
+                  return (
+                    <div
+                      key={movement.id}
+                      className="border border-cream rounded-lg px-4 py-3 flex items-center justify-between gap-4"
                     >
-                      {movement.kind === 'entrada' ? '+' : '-'}${movement.amount.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
+                      <div className="space-y-1">
+                        <p className="font-semibold">{movement.concept}</p>
+                        <p className="text-xs text-coffee/70">{formatDate(movement.date)}</p>
+                        <p className="text-xs text-coffee/60 capitalize">
+                          {isSaleMovement ? 'Venta automática' : 'Manual'} - {movement.kind}
+                        </p>
+                        {isSaleMovement && (
+                          <p className="text-xs text-red-700">
+                            Este movimiento proviene de una venta. Para corregirlo, ajusta o elimina la venta.
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`font-semibold ${
+                            movement.kind === 'entrada' ? 'text-accent' : 'text-coffee'
+                          }`}
+                        >
+                          {movement.kind === 'entrada' ? '+' : '-'}${movement.amount.toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-sm font-semibold text-red-700 hover:text-red-800 disabled:text-coffee/50 disabled:cursor-not-allowed"
+                          disabled={isSaleMovement}
+                          onClick={() => setMovementToDelete(movement)}
+                          title={
+                            isSaleMovement
+                              ? 'No puedes eliminar movimientos generados por ventas.'
+                              : 'Eliminar movimiento'
+                          }
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
                 {!recentMovements(boxKey).length && (
                   <p className="text-sm text-coffee/70">Aún no hay movimientos en esta caja.</p>
                 )}
@@ -158,6 +193,14 @@ export const FinancePage: React.FC = () => {
           );
         },
       )}
-    </div>
+      </div>
+      {movementToDelete && (
+        <ConfirmPinModal
+          movement={movementToDelete}
+          onCancel={() => setMovementToDelete(null)}
+          onConfirm={confirmDeletion}
+        />
+      )}
+    </>
   );
 };

@@ -29,7 +29,7 @@ export type FinanceMovement = {
   amount: number;
   concept: string;
   date: string;
-  source?: 'manual' | 'venta';
+  source?: 'manual' | 'sale' | 'venta';
 };
 
 export type Client = {
@@ -98,6 +98,7 @@ type PosContextValue = {
   deleteProduct: (id: string) => void;
   recordSale: (items: SalePayload) => { success: boolean; message?: string };
   addFinanceMovement: (movement: Omit<FinanceMovement, 'id'>) => void;
+  deleteCashMovement: (box: FinanceMovement['box'], movementId: string) => void;
   addClient: (client: Omit<Client, 'id'>) => void;
   updateClient: (id: string, changes: Partial<Omit<Client, 'id'>>) => void;
   deleteClient: (id: string) => void;
@@ -131,9 +132,15 @@ function generateId() {
 export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => loadFromStorage(PRODUCTS_KEY, []));
   const [sales, setSales] = useState<Sale[]>(() => loadFromStorage(SALES_KEY, []));
-  const [financeMovements, setFinanceMovements] = useState<FinanceMovement[]>(
-    () => loadFromStorage(FINANCE_KEY, []),
-  );
+  const [financeMovements, setFinanceMovements] = useState<FinanceMovement[]>(() => {
+    const stored = loadFromStorage<FinanceMovement[]>(FINANCE_KEY, []);
+    if (!Array.isArray(stored)) return [];
+
+    return stored.map((movement) => ({
+      ...movement,
+      source: movement.source === 'venta' ? 'sale' : movement.source ?? 'manual',
+    }));
+  });
   const [clients, setClients] = useState<Client[]>(() => {
     const storedClients = loadFromStorage<Client[]>(CLIENTS_KEY, []);
     if (!Array.isArray(storedClients)) return [];
@@ -257,14 +264,23 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amount: total,
         concept: 'Venta POS',
         date: sale.date,
-        source: 'venta',
+        source: 'sale',
       },
     ]);
     return { success: true };
   };
 
   const addFinanceMovement = (movement: Omit<FinanceMovement, 'id'>) => {
-    setFinanceMovements((prev) => [...prev, { ...movement, id: generateId() }]);
+    setFinanceMovements((prev) => [
+      ...prev,
+      { ...movement, id: generateId(), source: movement.source ?? 'manual' },
+    ]);
+  };
+
+  const deleteCashMovement = (box: FinanceMovement['box'], movementId: string) => {
+    setFinanceMovements((prev) =>
+      prev.filter((movement) => movement.box !== box || movement.id !== movementId),
+    );
   };
 
   const addClient = (client: Omit<Client, 'id'>) => {
@@ -356,6 +372,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteProduct,
       recordSale,
       addFinanceMovement,
+      deleteCashMovement,
       addClient,
       updateClient,
       deleteClient,
@@ -378,6 +395,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fridgeLoans,
       rawMaterials,
       rawMaterialMovements,
+      deleteCashMovement,
     ],
   );
 
