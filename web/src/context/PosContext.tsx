@@ -20,6 +20,11 @@ export type Sale = {
   items: SaleItem[];
   total: number;
   date: string;
+  notes?: string;
+  clientId?: string;
+  clientName?: string;
+  channel: 'pos' | 'wholesale';
+  folio?: string;
 };
 
 export type FinanceMovement = {
@@ -29,7 +34,7 @@ export type FinanceMovement = {
   amount: number;
   concept: string;
   date: string;
-  source?: 'manual' | 'sale' | 'venta';
+  source?: 'manual' | 'sale' | 'sale_wholesale' | 'venta';
 };
 
 export type Client = {
@@ -83,6 +88,13 @@ export type RawMaterialMovement = {
 };
 
 type SalePayload = { productId: string; quantity: number }[];
+type WholesalePayload = {
+  items: SalePayload;
+  notes?: string;
+  clientId?: string;
+  clientName?: string;
+  discount?: { type: 'amount' | 'percent'; value: number };
+};
 
 type PosContextValue = {
   products: Product[];
@@ -93,10 +105,14 @@ type PosContextValue = {
   fridgeLoans: FridgeLoan[];
   rawMaterials: RawMaterial[];
   rawMaterialMovements: RawMaterialMovement[];
+  nextWholesaleFolio: () => string;
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (id: string, changes: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (id: string) => void;
   recordSale: (items: SalePayload) => { success: boolean; message?: string };
+  createWholesaleSale: (
+    payload: WholesalePayload,
+  ) => { success: boolean; message?: string; sale?: Sale };
   addFinanceMovement: (movement: Omit<FinanceMovement, 'id'>) => void;
   deleteCashMovement: (box: FinanceMovement['box'], movementId: string) => void;
   addClient: (client: Omit<Client, 'id'>) => void;
@@ -122,6 +138,7 @@ const CREDITS_KEY = 'hedelmia_credits';
 const FRIDGES_KEY = 'hedelmia_fridge_loans';
 const RAW_MATERIALS_KEY = 'hedelmia_raw_materials';
 const RAW_MATERIAL_MOVEMENTS_KEY = 'hedelmia_raw_material_movements';
+const WHOLESALE_FOLIO_KEY = 'hedelmia_wholesale_folio';
 
 function generateId() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -129,16 +146,32 @@ function generateId() {
     : Math.random().toString(36).slice(2, 10);
 }
 
+const normalizeSales = (storedSales: Sale[]) => {
+  if (!Array.isArray(storedSales)) return [];
+
+  return storedSales.map((sale) => ({
+    ...sale,
+    channel: (sale as Sale).channel ?? 'pos',
+    folio: (sale as Sale).folio ?? '',
+    notes: (sale as Sale).notes ?? (sale as Sale & { note?: string }).note ?? undefined,
+  }));
+};
+
 export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>(() => loadFromStorage(PRODUCTS_KEY, []));
-  const [sales, setSales] = useState<Sale[]>(() => loadFromStorage(SALES_KEY, []));
+  const [sales, setSales] = useState<Sale[]>(() => normalizeSales(loadFromStorage(SALES_KEY, [])));
   const [financeMovements, setFinanceMovements] = useState<FinanceMovement[]>(() => {
     const stored = loadFromStorage<FinanceMovement[]>(FINANCE_KEY, []);
     if (!Array.isArray(stored)) return [];
 
     return stored.map((movement) => ({
       ...movement,
-      source: movement.source === 'venta' ? 'sale' : movement.source ?? 'manual',
+      source:
+        movement.source === 'venta'
+          ? 'sale'
+          : movement.source === undefined
+            ? 'manual'
+            : movement.source,
     }));
   });
   const [clients, setClients] = useState<Client[]>(() => {
@@ -159,11 +192,14 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rawMaterialMovements, setRawMaterialMovements] = useState<RawMaterialMovement[]>(
     () => loadFromStorage(RAW_MATERIAL_MOVEMENTS_KEY, []),
   );
+  const [wholesaleFolio, setWholesaleFolio] = useState<number>(
+    () => Number(loadFromStorage(WHOLESALE_FOLIO_KEY, 1)) || 1,
+  );
 
   useEffect(() => {
     const syncFromStorage = () => {
       setProducts(loadFromStorage(PRODUCTS_KEY, []));
-      setSales(loadFromStorage(SALES_KEY, []));
+      setSales(normalizeSales(loadFromStorage(SALES_KEY, [])));
     };
 
     syncFromStorage();
@@ -202,6 +238,14 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     saveToStorage(RAW_MATERIAL_MOVEMENTS_KEY, rawMaterialMovements);
   }, [rawMaterialMovements]);
+
+  useEffect(() => {
+    saveToStorage(WHOLESALE_FOLIO_KEY, wholesaleFolio);
+  }, [wholesaleFolio]);
+
+  const formatWholesaleFolio = (folioNumber: number) => `MAY-${String(folioNumber).padStart(6, '0')}`;
+
+  const nextWholesaleFolio = () => formatWholesaleFolio(wholesaleFolio);
 
   const addProduct = (product: Omit<Product, 'id'>) => {
     const safeStock = Math.max(0, product.stock);
@@ -251,6 +295,8 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       items: saleItems,
       total,
       date: new Date().toISOString(),
+      channel: 'pos',
+      folio: '',
     };
 
     setProducts(updatedProducts);
@@ -268,6 +314,67 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
     ]);
     return { success: true };
+  };
+
+  const createWholesaleSale = ({ items, notes, clientId, clientName, discount }: WholesalePayload) => {
+    if (!items.length) return { success: false, message: 'El carrito está vacío' };
+
+    const updatedProducts = [...products];
+    const saleItems: SaleItem[] = [];
+    let total = 0;
+
+    for (const { productId, quantity } of items) {
+      const productIndex = updatedProducts.findIndex((p) => p.id === productId);
+      if (productIndex === -1) return { success: false, message: 'Producto no encontrado' };
+
+      const product = updatedProducts[productIndex];
+      if (product.stock < quantity) {
+        return { success: false, message: `Stock insuficiente para ${product.name}` };
+      }
+
+      updatedProducts[productIndex] = { ...product, stock: product.stock - quantity };
+      saleItems.push({ productId, name: product.name, price: product.price, quantity });
+      total += product.price * quantity;
+    }
+
+    if (discount && discount.value > 0) {
+      const discountAmount =
+        discount.type === 'percent' ? Math.min(discount.value, 100) * (total / 100) : discount.value;
+      total = Math.max(total - discountAmount, 0);
+    }
+
+    const date = new Date().toISOString();
+    const folio = formatWholesaleFolio(wholesaleFolio);
+
+    const sale: Sale = {
+      id: generateId(),
+      items: saleItems,
+      total,
+      date,
+      notes: notes?.trim() ? notes.trim() : undefined,
+      clientId,
+      clientName: clientName?.trim() ? clientName.trim() : undefined,
+      channel: 'wholesale',
+      folio,
+    };
+
+    setProducts(updatedProducts);
+    setSales((prev) => [...prev, sale]);
+    setFinanceMovements((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        box: 'grande',
+        kind: 'entrada',
+        amount: total,
+        concept: `Venta Mayoreo ${folio}`,
+        date,
+        source: 'sale_wholesale',
+      },
+    ]);
+    setWholesaleFolio((prev) => prev + 1);
+
+    return { success: true, sale };
   };
 
   const addFinanceMovement = (movement: Omit<FinanceMovement, 'id'>) => {
@@ -367,10 +474,12 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fridgeLoans,
       rawMaterials,
       rawMaterialMovements,
+      nextWholesaleFolio,
       addProduct,
       updateProduct,
       deleteProduct,
       recordSale,
+      createWholesaleSale,
       addFinanceMovement,
       deleteCashMovement,
       addClient,
@@ -395,7 +504,7 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fridgeLoans,
       rawMaterials,
       rawMaterialMovements,
-      deleteCashMovement,
+      wholesaleFolio,
     ],
   );
 

@@ -9,11 +9,13 @@ import {
   TruckIcon,
   BeakerIcon,
   ReceiptPercentIcon,
+  TagIcon,
 } from '@heroicons/react/24/outline';
 
 const navItems = [
   { key: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
   { key: 'pos', label: 'POS', icon: ShoppingCartIcon },
+  { key: 'wholesale', label: 'Mayoreo', icon: TagIcon },
   { key: 'products', label: 'Productos', icon: CubeIcon },
   { key: 'finances', label: 'Finanzas', icon: BanknotesIcon },
   { key: 'clients', label: 'Clientes', icon: UsersIcon },
@@ -30,7 +32,7 @@ type SidebarProps = {
 
 export const Sidebar: React.FC<SidebarProps> = ({ current, onSelect }) => {
   return (
-    <aside className="bg-white border-r border-cream/80 h-full w-64 flex flex-col p-4 gap-6">
+    <aside className="bg-white border-r border-cream/80 h-full w-64 flex flex-col p-4 gap-6 no-print">
       <div className="flex items-center gap-3 px-2">
         <div className="h-10 w-10 rounded-xl bg-blush flex items-center justify-center font-bold text-coffee shadow-card">
           HP

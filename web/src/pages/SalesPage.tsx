@@ -40,8 +40,22 @@ export const SalesPage: React.FC = () => {
               <div className="flex items-center justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-coffee/70">{formatDate(sale.date)}</p>
-                  <p className="font-semibold text-lg">Total: ${sale.total.toFixed(2)}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-lg">Total: ${sale.total.toFixed(2)}</p>
+                    {sale.folio && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-cream text-coffee/80">Folio: {sale.folio}</span>
+                    )}
+                    <span className="text-xs px-2 py-1 rounded-full bg-mint/20 text-coffee font-semibold uppercase">
+                      {sale.channel === 'wholesale' ? 'Mayoreo' : 'POS'}
+                    </span>
+                  </div>
                   <p className="text-xs text-coffee/70">{sale.items.length} productos</p>
+                  {(sale.clientId || sale.clientName) && (
+                    <p className="text-xs text-coffee/70">
+                      Cliente: {sale.clientName || sale.clientId}
+                    </p>
+                  )}
+                  {sale.notes && <p className="text-xs text-coffee/70">Notas: {sale.notes}</p>}
                 </div>
                 <button
                   onClick={() => toggleExpanded(sale.id)}

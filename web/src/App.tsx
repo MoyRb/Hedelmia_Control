@@ -10,11 +10,13 @@ import { CreditsPage } from './pages/CreditsPage';
 import { FridgesPage } from './pages/FridgesPage';
 import { MaterialsPage } from './pages/MaterialsPage';
 import { SalesPage } from './pages/SalesPage';
+import { WholesalePage } from './pages/WholesalePage';
 import { ExportButton } from './components/ExportButton';
 
 const views = {
   dashboard: <DashboardPage />,
   pos: <PosPage />,
+  wholesale: <WholesalePage />,
   products: <ProductsPage />,
   finances: <FinancePage />,
   clients: <ClientsPage />,
@@ -27,6 +29,7 @@ const views = {
 const titles: Record<string, string> = {
   dashboard: 'Panel general',
   pos: 'Punto de venta',
+  wholesale: 'Venta Mayoreo',
   products: 'Productos',
   finances: 'Finanzas',
   clients: 'Clientes',
@@ -43,7 +46,7 @@ const AppContent: React.FC = () => {
     <div className="h-screen flex bg-cream">
       <Sidebar current={view} onSelect={setView} />
       <main className="flex-1 overflow-y-auto">
-        <header className="flex items-center justify-between p-6 sticky top-0 bg-cream/90 backdrop-blur border-b border-cream/80">
+        <header className="flex items-center justify-between p-6 sticky top-0 bg-cream/90 backdrop-blur border-b border-cream/80 no-print">
           <div>
             <p className="text-xs uppercase text-coffee/60 font-semibold">Hedelmiá POS</p>
             <h1 className="text-2xl font-bold">{titles[view]}</h1>

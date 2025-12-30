@@ -42,9 +42,13 @@ export function exportPosDataToExcel(data: ExportPayload) {
     'fecha/hora': sale.date,
     total: sale.total,
     notas: (sale as Sale & { notes?: string }).notes ?? '',
-    clientId: (sale as Sale & { clientId?: string }).clientId ?? '',
+    clientId: (sale as Sale & { clientId?: string }).clientId
+      ? findClientName(data.clients, (sale as Sale & { clientId?: string }).clientId ?? '')
+      : (sale as Sale & { clientName?: string }).clientName ?? '',
+    channel: sale.channel ?? 'pos',
+    folio: sale.folio ?? '',
   }));
-  appendSheet(workbook, ventasRows, 'Ventas', ['id', 'fecha/hora', 'total', 'notas', 'clientId']);
+  appendSheet(workbook, ventasRows, 'Ventas', ['id', 'fecha/hora', 'total', 'notas', 'clientId', 'channel', 'folio']);
 
   const itemsVentaRows: SheetRow[] = data.sales.flatMap((sale) =>
     sale.items.map((item) => ({
