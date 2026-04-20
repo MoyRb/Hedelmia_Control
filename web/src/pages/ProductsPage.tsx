@@ -9,8 +9,18 @@ export const ProductsPage: React.FC = () => {
   const [form, setForm] = useState<Omit<Product, 'id'>>(emptyProduct);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [stockEdits, setStockEdits] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState('');
 
   const sortedProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return sortedProducts;
+
+    return sortedProducts.filter((product) => {
+      const searchableText = `${product.name} ${product.price} ${product.stock}`.toLowerCase();
+      return searchableText.includes(term);
+    });
+  }, [search, sortedProducts]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -117,8 +127,18 @@ export const ProductsPage: React.FC = () => {
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Inventario</h2>
-          <span className="text-sm text-coffee/70">{products.length} productos</span>
+          <span className="text-sm text-coffee/70">{filteredProducts.length} productos</span>
         </div>
+        <label className="flex flex-col gap-1 text-sm font-medium mb-4">
+          Buscar producto
+          <input
+            type="text"
+            className="border border-cream rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-mint"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Escribe nombre, precio o stock"
+          />
+        </label>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -130,7 +150,7 @@ export const ProductsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-cream">
-              {sortedProducts.map((product) => {
+              {filteredProducts.map((product) => {
                 const lowStock = product.stock <= 5;
                 const editedStock = stockEdits[product.id] ?? product.stock;
                 return (
@@ -195,10 +215,10 @@ export const ProductsPage: React.FC = () => {
                   </tr>
                 );
               })}
-              {!sortedProducts.length && (
+              {!filteredProducts.length && (
                 <tr>
                   <td colSpan={4} className="py-6 text-center text-coffee/70">
-                    Aún no hay productos.
+                    No se encontraron productos.
                   </td>
                 </tr>
               )}
