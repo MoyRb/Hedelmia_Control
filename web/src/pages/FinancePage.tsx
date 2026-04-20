@@ -141,7 +141,10 @@ export const FinancePage: React.FC = () => {
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-coffee">Últimos movimientos</h3>
                 {recentMovements(boxKey).map((movement) => {
-                  const isSaleMovement = movement.source === 'sale' || movement.source === 'venta';
+                  const isAutomaticSaleMovement =
+                    movement.source === 'sale' ||
+                    movement.source === 'venta' ||
+                    movement.source === 'sale_wholesale';
 
                   return (
                     <div
@@ -152,9 +155,9 @@ export const FinancePage: React.FC = () => {
                         <p className="font-semibold">{movement.concept}</p>
                         <p className="text-xs text-coffee/70">{formatDate(movement.date)}</p>
                         <p className="text-xs text-coffee/60 capitalize">
-                          {isSaleMovement ? 'Venta automática' : 'Manual'} - {movement.kind}
+                          {isAutomaticSaleMovement ? 'Venta automática' : 'Manual'} - {movement.kind}
                         </p>
-                        {isSaleMovement && (
+                        {isAutomaticSaleMovement && (
                           <p className="text-xs text-red-700">
                             Este movimiento proviene de una venta. Para corregirlo, ajusta o elimina la venta.
                           </p>
@@ -171,10 +174,10 @@ export const FinancePage: React.FC = () => {
                         <button
                           type="button"
                           className="text-sm font-semibold text-red-700 hover:text-red-800 disabled:text-coffee/50 disabled:cursor-not-allowed"
-                          disabled={isSaleMovement}
+                          disabled={isAutomaticSaleMovement}
                           onClick={() => setMovementToDelete(movement)}
                           title={
-                            isSaleMovement
+                            isAutomaticSaleMovement
                               ? 'No puedes eliminar movimientos generados por ventas.'
                               : 'Eliminar movimiento'
                           }
