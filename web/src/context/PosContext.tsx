@@ -386,7 +386,17 @@ export const PosProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCashMovement = (box: FinanceMovement['box'], movementId: string) => {
     setFinanceMovements((prev) =>
-      prev.filter((movement) => movement.box !== box || movement.id !== movementId),
+      prev.filter((movement) => {
+        const isTargetMovement = movement.box === box && movement.id === movementId;
+        if (!isTargetMovement) return true;
+
+        const isAutomaticSaleMovement =
+          movement.source === 'sale' ||
+          movement.source === 'venta' ||
+          movement.source === 'sale_wholesale';
+
+        return !isAutomaticSaleMovement;
+      }),
     );
   };
 
